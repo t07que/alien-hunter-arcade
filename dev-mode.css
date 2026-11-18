@@ -1,0 +1,31 @@
+#dev[data-active="true"] {border-color:#d3a858;background:#322b17;color:#ffcf77}
+.dev-active #mode::before {content:"DEV";display:inline-block;margin-right:.55em;vertical-align:.16em;padding:.15em .34em;border:1px solid #caaa66;border-radius:2px;color:#f2c16d;font:800 .66em/1 Consolas,monospace;letter-spacing:.05em;text-shadow:none}
+dialog.dev-console {width:min(490px,94vw);border-color:#917a56;background:linear-gradient(145deg,#25291e,#141914 75%);color:#eef0e4}
+.dev-console .document h2 {color:#f2ca81;margin-bottom:.25em}
+.dev-console .dev-intro {margin:0 0 1em;line-height:1.35}
+.dev-rates {border:0;padding:0;margin:0}
+.dev-rates legend,.dev-label {display:block;margin:0 0 6px;color:#d7d9bf;font:700 .84rem/1.2 Consolas,monospace}
+#dev-rates {display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.dev-rate {position:relative;cursor:pointer}
+.dev-rate input {position:absolute;width:1px;height:1px;opacity:0}
+.dev-rate span {display:grid;place-items:center;min-height:44px;border:1px solid #657160;border-radius:4px;background:#172019;color:#d1d9ce;font:800 1.1rem/1 Consolas,monospace}
+.dev-rate input:checked+span {border-color:#efbe70;background:#3a301e;color:#ffdb9b;box-shadow:inset 0 -3px #e5b363}
+.dev-rate input:focus-visible+span,#dev-focus:focus-visible {outline:2px solid #e1efb0;outline-offset:2px}
+.dev-console .dev-hint {margin:6px 0 13px;font-size:.86rem;line-height:1.3;color:#c0c9ba}
+#dev-focus {width:100%;min-height:44px;border:1px solid #64725b;border-radius:4px;padding:4px 8px;background:#172019;color:#edf0db;font-family:inherit;font-size:1rem;font-weight:600;color-scheme:dark}
+.dev-actions {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.dev-actions .action {margin:0;min-height:44px}
+#dev-last {color:#c0c9ba;font:600 .78rem/1.2 Consolas,monospace}
+#dev-apply {border-color:#e7b96d;background:#dfb877;color:#201e15;font-weight:800}
+@media (orientation:landscape) and (max-height:480px){
+  dialog.dev-console {width:min(650px,94vw)}
+  .dev-console .document {padding:12px 16px}
+  #dev-form {display:grid;grid-template-columns:1fr 1.15fr;grid-template-rows:auto auto auto auto auto;gap:0 16px}
+  .dev-intro,.dev-actions {grid-column:1/-1}
+  .dev-rates {grid-area:2/1/4/2}
+  .dev-rates+.dev-hint {grid-area:4/1}
+  .dev-label {grid-area:2/2}
+  #dev-focus {grid-area:3/2}
+  #dev-note {grid-area:4/2}
+  .dev-actions {margin-top:0}
+}

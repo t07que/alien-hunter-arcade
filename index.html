@@ -10,13 +10,15 @@
   <link rel="stylesheet" href="breach.css">
   <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="incidents.css?v=incident-film-1">
+  <link rel="stylesheet" href="dev-mode.css?v=dev-odds-1">
   <link rel="preload" as="image" href="assets/quarantine-bay.png" media="(min-width:1101px) and (pointer:fine)">
   <link rel="preload" as="image" href="assets/specimens.png" media="(min-width:1101px) and (pointer:fine)">
-  <script defer src="engine.js?v=incident-film-1"></script>
+  <script defer src="engine.js?v=dev-odds-1"></script>
+  <script defer src="dev-mode.js?v=dev-odds-1"></script>
   <script defer src="sound.js?v=incident-film-1"></script>
   <script defer src="incidents.js?v=incident-film-1"></script>
-  <script defer src="security-tapes.js?v=incident-film-1"></script>
-  <script defer src="cabinet.js?v=incident-film-1"></script>
+  <script defer src="security-tapes.js?v=dev-odds-1"></script>
+  <script defer src="cabinet.js?v=dev-odds-1"></script>
 </head>
 <body>
 <main>
@@ -45,7 +47,7 @@
   </div>
   <footer>
     <p class="log"><i></i><span id="log" role="status" aria-live="polite">Bureau online. Ready for patrol.</span></p>
-    <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="tapes" aria-label="Security tapes">Tapes</button><button id="manual">Field manual</button><button id="sound" aria-pressed="false">Sound on</button></nav>
+    <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="tapes" aria-label="Security tapes">Tapes</button><button id="manual">Field manual</button><button id="dev" aria-haspopup="dialog" aria-label="Dev mode settings">Dev</button><button id="sound" aria-pressed="false">Sound on</button></nav>
   </footer>
 </main>
 <section class="rotate-screen" aria-labelledby="rotate-title">
@@ -56,6 +58,17 @@
   </div>
 </section>
 <dialog id="dialog"><div class="document"><button class="close" id="close" aria-label="Close">×</button><div id="paper"></div></div></dialog>
+<template id="dev-template">
+  <form id="dev-form">
+    <p class="dev-intro">Test spins use a separate wallet, case file and tape shelf. Your patrol resumes where you left it.</p>
+    <fieldset class="dev-rates"><legend>Chance to stage a feature</legend><div id="dev-rates"></div></fieldset>
+    <p class="dev-hint">Other spins use the usual draw and can still land a feature.</p>
+    <label class="dev-label" for="dev-focus">Event focus</label>
+    <select id="dev-focus" aria-describedby="dev-note"><option value="mix">Mix all events</option></select>
+    <p id="dev-note" class="dev-hint" aria-live="polite"></p>
+    <div class="dev-actions"><button class="action" type="submit" id="dev-apply">Enable dev mode</button><button class="action" type="button" id="dev-exit" hidden>Exit dev mode</button><small id="dev-last" hidden></small></div>
+  </form>
+</template>
 </body>
 </html>
 

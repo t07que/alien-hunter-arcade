@@ -15,7 +15,7 @@ window.SecurityTapes=(()=>{
     if(!voids.length && !r.passenger)return false;
     const number=(state.tapeSerial??0)+1;
     state.tapeSerial=number;r.tapeNumber=number;
-    const tape={number,created:Date.now(),drill,kept:false,
+    const tape={number,created:Date.now(),drill,dev:!!state.dev,kept:false,
       previous:previous?.tractor?.passes.at(-1)??previous?.grid??H.initialGrid,
       previousVariants:previous?.variants??{},previousStake:previous?.stake??r.stake,previousEnhanced:!!previous?.enhanced,
       grid:r.grid,lines:r.lineWins,passes:r.tractor?.passes??[],
@@ -36,7 +36,7 @@ window.SecurityTapes=(()=>{
   function shelf(context){
     eject();
     const {dialog,openPaper,tapes,startDrill,refresh,keep}=context;
-    openPaper('Security tapes','<div class="vault-intro"><span class="vhs-mark" aria-hidden="true">VHS</span><p>Run a practice drill to stage an incident and record it.</p></div><div class="drill-select"><button class="incident-drill drill-tow" id="drill-tow"><i></i><span>Run drill</span><strong>Voidback tow</strong></button><button class="incident-drill drill-mimic" id="drill-mimic"><i></i><span>Run drill</span><strong>Uninvited passenger</strong></button></div><h3>Recorded incidents</h3><p id="vault-status"></p><div class="cassette-rack"></div>');
+    openPaper(context.dev?'Dev security tapes':'Security tapes','<div class="vault-intro"><span class="vhs-mark" aria-hidden="true">VHS</span><p>Run a practice drill to stage an incident and record it.</p></div><div class="drill-select"><button class="incident-drill drill-tow" id="drill-tow"><i></i><span>Run drill</span><strong>Voidback tow</strong></button><button class="incident-drill drill-mimic" id="drill-mimic"><i></i><span>Run drill</span><strong>Uninvited passenger</strong></button></div><h3>Recorded incidents</h3><p id="vault-status"></p><div class="cassette-rack"></div>');
     dialog.classList.add('archive','tape-room');
     dialog.querySelector('#drill-tow').onclick=()=>startDrill('void');
     dialog.querySelector('#drill-mimic').onclick=()=>startDrill('passenger');
@@ -46,7 +46,8 @@ window.SecurityTapes=(()=>{
       const row=element('div','cassette-row'),play=element('button','cassette'),label=element('span','tape-label');
       play.setAttribute('aria-label','Play '+title(tape)+' · '+id(tape.number));
       const date=new Date(tape.created);
-      label.append(element('small','',id(tape.number)+'  /  '+(tape.drill?'DRILL':'FIELD')+'  /  '+date.toLocaleDateString(undefined,{month:'short',day:'numeric'})),
+      const source=tape.drill?'DRILL':tape.dev?'DEV':'FIELD';
+      label.append(element('small','',id(tape.number)+'  /  '+source+'  /  '+date.toLocaleDateString(undefined,{month:'short',day:'numeric'})),
         element('strong','',title(tape)),element('small','','▶ PLAY   ·   '+tape.payout.toLocaleString()+' TOKENS'));
       const hubs=element('span','tape-hubs');hubs.setAttribute('aria-hidden','true');
       play.append(hubs,label);play.onclick=()=>screen(context,tape);

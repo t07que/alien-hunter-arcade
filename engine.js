@@ -42,9 +42,12 @@
     return {version:1, balance:1240, stake:5, remaining:0, enhanced:false, mask:0,
       captures:[0,0,0], rareCaptures:{}, cases:0, featureTotal:0, contacts:0, featureRank:0, practice:false, last:null};
   }
-  function draw(free, rng = Math.random, rank=0, variants, clearance=rank, agentChance=radarRanks[rank].agent) {
-    const grid = Array.from({length:5}, () => Array.from({length:3},
+  function regularGrid(rng) {
+    return Array.from({length:5}, () => Array.from({length:3},
       () => strip[Math.floor(rng() * strip.length)]));
+  }
+  function draw(free, rng = Math.random, rank=0, variants, clearance=rank, agentChance=radarRanks[rank].agent) {
+    const grid=regularGrid(rng);
     for (let reel=0; reel<5; reel++) {
       if (free) {
         if (reel === 3 && rng() < agentChance) grid[reel][Math.floor(rng()*3)] = 'agent';
@@ -65,18 +68,20 @@
     const rare=rareFamilies[family];
     if(variants && clearance>=rare.rank && draw-family<rare.chance)variants[c*3+row]=rare.id;
   }
-  function tractorLock(result,state,rng,variants){
+  function tractorLock(result,state,rng,variants,requestedLock){
     if(!result.bounty || result.sightings)return;
     let grid=result.grid;
     const openReels=()=>[0,1,2,4].filter(c=>!grid[c].some(id=>jars.includes(id)));
     let open=openReels();
-    if(!open.length || rng()>=1/3)return;
+    if(!open.length || (!requestedLock && rng()>=1/3))return;
     const passes=[];
     while(open.length){
       const next=grid.slice();
+      const addJar=requestedLock==='passenger'||(requestedLock==='tractor' && !passes.length);
+      const guaranteedReel=addJar?open[Math.floor(rng()*open.length)]:-1;
       for(const c of open){
         next[c]=Array.from({length:3},()=>strip[Math.floor(rng()*strip.length)]);
-        if(rng()<.22)placeJar(next[c],c,rng,result.free?variants:null,radarRank(state.contacts));
+        if(c===guaranteedReel || rng()<.22)placeJar(next[c],c,rng,result.free?variants:null,radarRank(state.contacts));
       }
       grid=next;
       passes.push(grid);
@@ -89,7 +94,7 @@
     result.payout+=catchResult.bounty-result.bounty;
     result.bounty=catchResult.bounty;
     result.caught=catchResult.caught;
-    if(!open.length && (!state.mimicsFound || rng()<1/3)){
+    if(!open.length && (requestedLock==='passenger' || !state.mimicsFound || rng()<1/3)){
       const previous=passes.at(-2)??result.grid;
       const c=[4,2,1,0].find(reel=>!previous[reel].some(id=>jars.includes(id)));
       result.passenger={slot:c*3+grid[c].findIndex(id=>jars.includes(id)),found:false};
@@ -115,10 +120,13 @@
     const roll=rng();
     const ufoEvents=encounters.rewrite+encounters.formation;
     if(roll>=ufoEvents+encounters.flip)return null;
+    return applyEncounter(grid,rng,roll<encounters.rewrite?'rewrite':roll<ufoEvents?'formation':'flip');
+  }
+  function applyEncounter(grid,rng,type){
     const regularSymbol=()=>strip[Math.floor(rng()*strip.length)];
-    if(roll<encounters.rewrite || roll>=ufoEvents){
+    if(type!=='formation'){
       for(const col of grid)for(let row=0;row<3;row++)if(col[row]==='ufo')col[row]=regularSymbol();
-      if(roll>=ufoEvents){
+      if(type==='flip'){
         const left=Math.floor(rng()*4),row=Math.floor(rng()*3),rightward=rng()<.5;
         const source=rightward?left:left+1,c=rightward?left+1:left;
         const subject=rng()<.5?'sprout':'ink',old=grid[c][row];
@@ -175,18 +183,19 @@
     return {grid,winners,lineWins,caught,bounty,payout:payout+bounty,triggered,free,
       priorMask:state.mask,enhanced:doubled,sightings:ufos,caseClosed:false,finished:false};
   }
-  function spin(state,rng=Math.random) {
+  function spin(state,rng=Math.random,staged=null) {
     const free=state.remaining>0;
     if(!free && state.balance<state.stake) return null;
     const rank=free?(state.featureRank??0):radarRank(state.contacts);
-    const variants={};
+    const variants=staged?.variants??{};
     // Breaches saved before encounters shipped used this earlier agent paytable.
     const agentChance=free?(state.featureAgent??[.52655236,.46000558,.40536657][rank]):radarRanks[rank].agent;
-    const grid=draw(free,rng,rank,variants,radarRank(state.contacts),agentChance);
-    const encounter=free?null:visit(grid,rng);
-    if(!free && !encounter)patrolSamples(grid,rng);
+    const grid=staged?.grid??draw(free,rng,rank,variants,radarRank(state.contacts),agentChance);
+    const encounter=staged?(staged.encounter??null):(free?null:visit(grid,rng));
+    if(!staged && !free && !encounter)patrolSamples(grid,rng);
     const result=evaluate(grid,state,free);
-    tractorLock(result,state,rng,variants);
+    tractorLock(result,state,rng,variants,staged?.lock);
+    if(staged)result.devFeature=staged.feature;
     result.encounter=encounter;
     result.variants=variants;
     result.discoveries=[];
@@ -228,7 +237,7 @@
     state.last=result;
     return result;
   }
-  const api={newGame,draw,evaluate,spin,voidbackSlots,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
+  const api={newGame,draw,regularGrid,applyEncounter,evaluate,spin,voidbackSlots,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else window.Hunter=api;
 })();

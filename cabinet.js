@@ -1,10 +1,16 @@
 (() => {
   'use strict';
-  const H=window.Hunter, $=id=>document.getElementById(id);
+  const H=window.Hunter,dev=window.HunterDev,$=id=>document.getElementById(id);
   const speciesById=Object.fromEntries(H.catalog.map(entry=>[entry.id,entry]));
   const cabinet=$('cabinet'), dialog=$('dialog'), reduced=matchMedia('(prefers-reduced-motion: reduce)');
   const portraitPlay=matchMedia('(orientation:portrait) and (pointer:coarse) and (max-width:1024px)');
-  const slotKey='alien-hunter.cabinet.v1', stakeOptions=[5,10,20];
+  const patrolKey='alien-hunter.cabinet.v1',devKey='alien-hunter.dev.cabinet.v1',stakeOptions=[5,10,20];
+  const devSession='alien-hunter.dev.active',devPrefs='alien-hunter.dev.options';
+  let devEnabled=false,devOptions=dev.options();
+  try{devEnabled=sessionStorage.getItem(devSession)==='on';}catch{}
+  try{devOptions=dev.options(JSON.parse(localStorage.getItem(devPrefs)));}catch{}
+  let slotKey=devEnabled?devKey:patrolKey;
+  const tabProfiles=new Map();
   const art={
     prong:[68,201,234,176], moth:[1052,201,239,176], sprout:[312,386,240,175], ink:[68,568,234,176],
     grey:[1052,568,239,176], blue:[805,568,238,176], tape:[312,201,240,176], badge:[68,386,234,175],
@@ -19,12 +25,13 @@
     el.style.backgroundPosition=(x/(1672-w)*100)+'% '+(y/(941-h)*100)+'%';
   }
   function read() {
+    const fresh=devEnabled?dev.newGame():H.newGame();
     try {
       const s=JSON.parse(localStorage.getItem(slotKey));
       if(s?.version===1 && Number.isSafeInteger(s.balance) && s.balance>=0 && stakeOptions.includes(s.stake)
-        && Array.isArray(s.captures) && s.captures.length===3 && Number.isInteger(s.remaining)) return {...H.newGame(),...s};
+        && Array.isArray(s.captures) && s.captures.length===3 && Number.isInteger(s.remaining)) return {...fresh,...s};
     } catch {}
-    return H.newGame();
+    return fresh;
   }
   let state=read(), practice=null, busy=false, sound=true, storageOK=true;
   let batch=null;
@@ -34,7 +41,11 @@
   const current=()=>practice||state, format=n=>n.toLocaleString('en-GB');
   const passengerWaiting=s=>Boolean(s.last?.passenger && !s.last.passenger.found);
   const wait=ms=>new Promise(done=>setTimeout(done,ms));
-  const lock=job=>navigator.locks ? navigator.locks.request(slotKey,job) : Promise.resolve().then(job);
+  const lock=job=>{
+    const key=slotKey;
+    const run=()=>{if(key===slotKey)return job();};
+    return navigator.locks?navigator.locks.request(key,run):Promise.resolve().then(run);
+  };
   function save() {
     try{localStorage.setItem(slotKey,JSON.stringify(state));}
     catch {storageOK=false;}
@@ -116,7 +127,11 @@
     $('spin').disabled=occupied || (!waiting && !free && short && !empty && !practice);
     $('up').disabled=occupied||waiting||free||!!practice||s.stake===20||s.balance<stakeOptions[stakeOptions.indexOf(s.stake)+1];
     $('down').disabled=occupied||waiting||free||!!practice||s.stake===5;
-    $('manual').disabled=$('files').disabled=$('tapes').disabled=occupied;
+    $('manual').disabled=$('files').disabled=$('tapes').disabled=$('dev').disabled=occupied;
+    cabinet.classList.toggle('dev-active',devEnabled);
+    $('dev').dataset.active=String(devEnabled);
+    $('dev').title=devEnabled?'Dev mode on · '+devOptions.chance+'% feature chance':'Dev mode settings';
+    $('dev').setAttribute('aria-label',$('dev').title);
     batchControl();
     $('mode').textContent=free?(practice?'Breach drill':'Containment breach'):'Field patrol';
     $('mission').textContent=free?'Free spins left  '+s.remaining+(s.enhanced && s.remaining<=2?' · 2×':''):'3 UFOs unlock free spins';
@@ -164,6 +179,10 @@
     if(passengerWaiting(s)){
       $('mode').textContent='Uninvited passenger';$('mission').textContent='Lift the Spin button';
       monitor('Control deck','LIFT','COVER');log('Two eyes under the Spin button. Tap it to lift the cover.');return;
+    }
+    if(devEnabled && !practice && !r){
+      monitor('Test wallet','READY','DEV MODE');
+      log('Test cabinet ready. '+devOptions.chance+'% chance to stage a feature on each spin.');return;
     }
     if(!r){monitor(practice?'Training scanner':'Bounty scanner','READY',practice?'DRILL ACTIVE':'ON PATROL');log(practice?(s.tractorDrill?'Press Spin to run the Tractor Lock demonstration.':'Training wallet open. Eight practice spins.'):'Bureau online. Ready for patrol.');return;}
     if(r.finished){monitor('Mission total',format(s.featureTotal),'tokens');log('Breach contained. '+format(s.featureTotal)+' tokens. Debrief in the case file.');}
@@ -720,7 +739,8 @@
         let demoSeed=practice?.drillType==='void'?484:10066;
         const demoDraw=()=>((demoSeed=(Math.imul(demoSeed,1664525)+1013904223)>>>0)/4294967296);
         const previous=s.last;
-        r=H.spin(s,practice?.tractorDrill||practice?.drillType==='void'?demoDraw:random);
+        const staged=devEnabled && !practice?dev.plan(s,devOptions,random):null;
+        r=H.spin(s,practice?.tractorDrill||practice?.drillType==='void'?demoDraw:random,staged);
         if(!r)return;
         r.stake=s.stake;openingBalance=s.balance-r.payout;
         if(practice)reload();
@@ -771,11 +791,66 @@
   }
   function openPaper(title,body){
     if(busy||batch)return;
-    dialog.classList.remove('archive','tape-room');
-    audio.unlock();audio.play('switch');
+    dialog.classList.remove('archive','tape-room','dev-console');
+    if(!navigator.userActivation || navigator.userActivation.hasBeenActive){audio.unlock();audio.play('switch');}
     $('paper').innerHTML='<h2>'+title+'</h2>'+body;
     if(!dialog.open)dialog.showModal();
     dialog.scrollTop=0;$('close').focus();
+  }
+  function applyDevSettings(enabled,options){
+    if(busy||batch)return;
+    audio.unlock();
+    if(options){
+      devOptions=dev.options(options);
+      try{localStorage.setItem(devPrefs,JSON.stringify(devOptions));}catch{}
+    }
+    if(enabled!==devEnabled){
+      tabProfiles.set(slotKey,{state,practice,storageOK});
+      devEnabled=enabled;slotKey=enabled?devKey:patrolKey;
+      const cached=tabProfiles.get(slotKey);
+      storageOK=cached?.storageOK??true;
+      state=storageOK?read():cached.state;
+      practice=cached?.practice??null;
+      try{sessionStorage.setItem(devSession,enabled?'on':'off');}catch{}
+    }
+    if(enabled)practice=null;
+    dialog.close();scanSpecimen('green');restore();$('spin').focus();
+  }
+  function devPanel(){
+    if(busy||batch||portraitPlay.matches)return;
+    openPaper('Dev mode','');
+    dialog.classList.add('dev-console');
+    $('paper').append($('dev-template').content.cloneNode(true));
+    const form=$('dev-form'),select=$('dev-focus');
+    for(const rate of dev.rates){
+      const label=document.createElement('label'),input=document.createElement('input'),face=document.createElement('span');
+      label.className='dev-rate';input.type='radio';input.name='chance';input.value=rate;input.checked=rate===devOptions.chance;
+      face.textContent=rate+'%';label.append(input,face);$('dev-rates').append(label);
+    }
+    const groups=new Map();
+    for(const f of dev.features){
+      if(!groups.has(f.group)){
+        const group=document.createElement('optgroup');group.label=f.group;groups.set(f.group,group);select.append(group);
+      }
+      groups.get(f.group).append(new Option(f.name,f.id));
+    }
+    select.value=devOptions.focus;
+    select.onchange=()=>{
+      const feature=dev.features.find(f=>f.id===select.value);
+      $('dev-note').textContent=feature?.note??'Varies the event across patrols and free spins. The first three UFOs unlock Deep Scan in a fresh test wallet.';
+    };select.onchange();
+    $('dev-apply').textContent=devEnabled?'Apply settings':'Enable dev mode';
+    $('dev-exit').hidden=!devEnabled;
+    if(devEnabled && state.last){
+      const last=dev.features.find(f=>f.id===state.last.devFeature);
+      $('dev-last').textContent='Last test spin · '+(last?.name??'Standard draw');
+      $('dev-last').hidden=false;
+    }
+    $('dev-exit').onclick=()=>applyDevSettings(false);
+    form.onsubmit=e=>{
+      e.preventDefault();
+      applyDevSettings(true,{chance:Number(form.elements.chance.value),focus:select.value});
+    };
   }
   async function startDrill(kind){
     if(busy||batch||portraitPlay.matches)return;
@@ -793,7 +868,7 @@
       practice.featureAgent=H.radarRanks[practice.featureRank].agent;
     }else{practice=null;reload();}
     dialog.close();
-    for(const id of ['batch','spin','manual','files','up','down','tapes'])$(id).disabled=true;
+    for(const id of ['batch','spin','manual','files','up','down','tapes','dev'])$(id).disabled=true;
     try{
       if(entering)await changeScene(true,kind==='breach'?'Training drill · 8 free spins':kind==='tractor'?'Tractor Lock · training demonstration':kind==='void'?'Incident drill · Voidback':'Incident drill · Uninvited passenger');
       else if(!state.remaining)await changeScene(false,'Training drill complete');
@@ -801,7 +876,7 @@
     if(staged)await patrol();
   }
   function fieldManual(){
-    openPaper('Field manual','<p>Spin five reels using free arcade tokens. Three or more matching mugshots or tools from the left pay on any of ten fixed lines.</p><h3>Line awards</h3><p>Three pay 2× your stake, four pay 8×, and five pay 25×. Each line pays its longest match.</p><div class="paylines" aria-label="Ten winning line patterns"></div><h3>Patrol bounties</h3><p>On patrol, an agent pays the value of every specimen jar on the same spin. Case-file discoveries and family rewards are earned during Containment Breach.</p><h3>Containment Breach</h3><p>UFOs on reels 1, 3 and 5 award eight free spins at the triggering stake. Agents and specimen jars appear more often here. When they land together, the agent collects every jar. Their tags show the token amounts.</p><h3>Tractor Lock</h3><p>On patrol or in a breach, one in three agent catches with an open jar reel and no UFO activates Tractor Lock. The agent and jar reels stay put. Each open reel has a 22% chance to land a jar per free rescan. Every pass that adds a jar starts another until all four are held or a pass comes up empty. The agent collects the whole catch once. Line awards use the opening spin.</p><h3>Close the case</h3><p>Capture all three bounty families in one breach to earn two extra spins. Jar values double during those two spins. Rare family members become available at higher radar ranks. Every species you capture gets its own incident record in the case file.</p><h3>Patrol encounters</h3><p>A visiting saucer can rewrite three symbols to complete a line or beam a UFO down to replace a reel symbol. A Sprout or Inkling can turn the tile beside it into a match. Line awards and UFO contacts use the final reel faces.</p><h3>Patrol odds</h3><p>Long-run token return 96.7%, including bonus awards. About one in seven paid spins pays a line award. Each result is drawn before the reels move.</p><small>Space spins · Escape closes this manual. Progress saves in this browser.</small>'
+    openPaper('Field manual','<p>Spin five reels using free arcade tokens. Three or more matching mugshots or tools from the left pay on any of ten fixed lines.</p><h3>Line awards</h3><p>Three pay 2× your stake, four pay 8×, and five pay 25×. Each line pays its longest match.</p><div class="paylines" aria-label="Ten winning line patterns"></div><h3>Patrol bounties</h3><p>On patrol, an agent pays the value of every specimen jar on the same spin. Case-file discoveries and family rewards are earned during Containment Breach.</p><h3>Containment Breach</h3><p>UFOs on reels 1, 3 and 5 award eight free spins at the triggering stake. Agents and specimen jars appear more often here. When they land together, the agent collects every jar. Their tags show the token amounts.</p><h3>Tractor Lock</h3><p>On patrol or in a breach, one in three agent catches with an open jar reel and no UFO activates Tractor Lock. The agent and jar reels stay put. Each open reel has a 22% chance to land a jar per free rescan. Every pass that adds a jar starts another until all four are held or a pass comes up empty. The agent collects the whole catch once. Line awards use the opening spin.</p><h3>Close the case</h3><p>Capture all three bounty families in one breach to earn two extra spins. Jar values double during those two spins. Rare family members become available at higher radar ranks. Every species you capture gets its own incident record in the case file.</p><h3>Patrol encounters</h3><p>A visiting saucer can rewrite three symbols to complete a line or beam a UFO down to replace a reel symbol. A Sprout or Inkling can turn the tile beside it into a match. Line awards and UFO contacts use the final reel faces.</p><h3>Standard patrol odds</h3><p>Long-run token return 96.7%, including bonus awards. About one in seven paid spins pays a line award. Each result is drawn before the reels move.</p><small>Space spins · Escape closes this manual. Progress saves in this browser.</small>'
       +(practice?'<br><button class="action" id="drill">Leave drill</button>':'<br><button class="action" id="drill">Try a bonus drill</button><button class="action" id="tractor-drill">Try Tractor Lock</button><p><small>Drills use a separate practice wallet. Tractor Lock demonstrates a four-jar catch.</small></p>'));
     H.lines.forEach((line,i)=>{
       const el=document.createElement('div');el.className='pattern';el.title='Line '+(i+1);
@@ -874,7 +949,7 @@
     showPlate();
   }
   function files(){
-    const s=current(),title=practice?'Training case file':'Alien case file';
+    const s=current(),title=practice?'Training case file':devEnabled?'Dev case file':'Alien case file';
     const found=H.catalog.filter(entry=>H.captured(s,entry)>0).length;
     const breachStatus=s.remaining?' · '+[1,2,4].filter(bit=>s.mask&bit).length+'/3 families this breach':'';
     openPaper(title,'<div class="archive-progress"><strong>'+found+' / '+H.catalog.length+' species filed</strong><progress max="'+H.catalog.length+'" value="'+found+'" aria-label="Species collection"></progress></div><p>'+s.captures.reduce((a,b)=>a+b,0)+' specimens collected · '+s.cases+' '+(s.cases===1?'case':'cases')+' closed'+breachStatus+'</p><div class="case-grid"></div>');
@@ -925,7 +1000,7 @@
   function tapeRoom(){
     if(busy||batch||portraitPlay.matches)return;
     reload();
-    SecurityTapes.shelf({dialog,openPaper,tile,startDrill,tapes:state.tapes??[],refresh:tapeRoom,
+    SecurityTapes.shelf({dialog,openPaper,tile,startDrill,tapes:state.tapes??[],dev:devEnabled,refresh:tapeRoom,
       keep:number=>lock(()=>{
         reload();const tapes=state.tapes??[],tape=tapes.find(item=>item.number===number);
         if(!tape || (!tape.kept && tapes.filter(item=>item.kept).length>=6))return;
@@ -934,7 +1009,7 @@
   }
   $('spin').onclick=activateSpin;$('batch').onclick=runBatch;$('tapes').onclick=tapeRoom;
   $('up').onclick=()=>changeStake(1);$('down').onclick=()=>changeStake(-1);
-  $('files').onclick=files;$('manual').onclick=fieldManual;$('close').onclick=()=>dialog.close();
+  $('files').onclick=files;$('manual').onclick=fieldManual;$('dev').onclick=devPanel;$('close').onclick=()=>dialog.close();
   dialog.onclick=e=>{if(e.target===dialog)dialog.close();};
   dialog.addEventListener('close',()=>{SecurityTapes.eject();audio.play('close');});
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem('alien-hunter.sound',sound?'on':'off');}catch{}audio.setEnabled(sound);audio.unlock();audio.play('switch');soundControl();};
@@ -951,10 +1026,14 @@
       stopBatch();
       if(dialog.open)dialog.close();
     }
-    else if(openTapesOnEntry){openTapesOnEntry=false;tapeRoom();}
+    else if(entryPanel){
+      const open=entryPanel;entryPanel=null;
+      if(open==='#tapes')tapeRoom();
+      if(open==='#dev')devPanel();
+    }
   }
-  let openTapesOnEntry=location.hash==='#tapes';
-  window.addEventListener('hashchange',()=>{openTapesOnEntry=location.hash==='#tapes';syncOrientation();});
+  let entryPanel=location.hash;
+  window.addEventListener('hashchange',()=>{entryPanel=location.hash;syncOrientation();});
   portraitPlay.addEventListener('change',syncOrientation);
   syncOrientation();
   scanSpecimen('green');restore();
