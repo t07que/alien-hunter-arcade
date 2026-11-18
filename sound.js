@@ -173,6 +173,17 @@ window.CabinetAudio = (() => {
       case 'transport': noise(1900,570,.85,.10);tone(740,280,.76,.078);tone(1110,420,.80,.045,.06,'triangle');break;
       case 'filed': tone(830,830,.08,.075);tone(1240,1240,.15,.055,.07);break;
       case 'win': [392,494,587,784].forEach((f,i)=>tone(f,f,.17,.07,i*.075));break;
+      case 'win-counter': tone(520+70*param,610+70*param,.045,.033,0,'triangle');break;
+      case 'win-tier': {
+        const root=[330,392,440,494,587,659][param];
+        [1,1.25,1.5].forEach((step,i)=>tone(root*step,root*step,.15,.055,i*.066,'triangle'));
+        break;
+      }
+      case 'win-banked': {
+        const root=330+param*36;
+        [1,1.25,1.5,2].forEach((step,i)=>tone(root*step,root*step,.28,.055,i*.075,'sine'));
+        break;
+      }
       case 'clear': tone(300,230,.13,.04);break;
       case 'case': [330,440,554,660,880].forEach((f,i)=>tone(f,f,.23,.085,i*.12,'triangle'));break;
       case 'all-clear': [660,550,440].forEach((f,i)=>tone(f,f,.24,.085,i*.16));break;

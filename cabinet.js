@@ -3,6 +3,7 @@
   const H=window.Hunter,dev=window.HunterDev,$=id=>document.getElementById(id);
   const speciesById=Object.fromEntries(H.catalog.map(entry=>[entry.id,entry]));
   const cabinet=$('cabinet'), dialog=$('dialog'), reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  const awards=window.CabinetAwards,winDialog=$('win-dialog');
   const portraitPlay=matchMedia('(orientation:portrait) and (pointer:coarse) and (max-width:1024px)');
   const patrolKey='alien-hunter.cabinet.v1',devKey='alien-hunter.dev.cabinet.v1',stakeOptions=[5,10,20];
   const devSession='alien-hunter.dev.active',devPrefs='alien-hunter.dev.options';
@@ -11,6 +12,7 @@
   try{devOptions=dev.options(JSON.parse(localStorage.getItem(devPrefs)));}catch{}
   let slotKey=devEnabled?devKey:patrolKey;
   const tabProfiles=new Map();
+  const seenDebriefs=new Map();
   const art={
     prong:[68,201,234,176], moth:[1052,201,239,176], sprout:[312,386,240,175], ink:[68,568,234,176],
     grey:[1052,568,239,176], blue:[805,568,238,176], tape:[312,201,240,176], badge:[68,386,234,175],
@@ -86,8 +88,31 @@
     if(id==='amber')sprite.append(lid.cloneNode());
     return sprite;
   }
-  function scanSpecimen(id){
-    $('scan-specimen').replaceChildren(creature(id));
+  const rosterSpecies=new Map();
+  const familyCards=H.jars.map((_,i)=>{
+    const group=document.createElement('div');group.className='roster-family';
+    group.setAttribute('role','group');group.setAttribute('aria-label',H.species[i]+' family');
+    const pair=document.createElement('div');pair.className='roster-pair';
+    for(const entry of H.catalog.filter(e=>e.family===i)){
+      const cell=document.createElement('button');cell.type='button';cell.className='roster-specimen';cell.dataset.species=entry.id;
+      cell.setAttribute('aria-haspopup','dialog');cell.onclick=()=>{if(!busy&&!batch)files(entry.id);};
+      if(entry.rank)cell.classList.add('rare-species');
+      const portrait=document.createElement('span');portrait.className='roster-art';portrait.append(creature(entry.id));
+      const data=document.createElement('span');data.className='roster-data';
+      const name=document.createElement('span');name.className='roster-name';name.textContent=entry.name;
+      const count=document.createElement('b');count.className='roster-count';
+      data.append(name,count);cell.append(portrait,data);pair.append(cell);rosterSpecies.set(entry.id,{cell,count});
+    }
+    const goal=document.createElement('div');goal.className='roster-goal';
+    const pips=document.createElement('span');pips.setAttribute('aria-hidden','true');
+    for(let n=0;n<3;n++)pips.append(document.createElement('i'));
+    const text=document.createElement('b');goal.append(pips,text);
+    group.append(pair,goal);$('roster-families').append(group);
+    return {group,pips,text};
+  });
+  function markCapture(id){
+    if(reduced.matches)return;
+    rosterSpecies.get(id).cell.animate([{boxShadow:'inset 0 0 12px #c1fff1',backgroundColor:'#467867'},{boxShadow:'inset 0 0 0 transparent',backgroundColor:'transparent'}],{duration:700});
   }
   function board(grid,s,doubled,winners=[],variants={}){
     grid.forEach((col,c)=>{
@@ -109,16 +134,35 @@
   }
   function familyTrail(mask){
     const count=H.jars.filter((_,i)=>mask & (1<<i)).length;
-    $('family-progress').textContent=count===3?'2× spins earned':count+'/3 · earn +2';
-    $('specimen-lights').querySelectorAll('i').forEach((lamp,i)=>{
-      lamp.classList.toggle('lit',Boolean(mask&(1<<i)));
-      lamp.title=H.species[i]+(mask&(1<<i)?' · filed':' · wanted');
-    });
+    $('family-progress').textContent='Families '+count+'/3 · +2 spins at 2×';
+    $('family-progress').title='Capture all three families to earn two double-bounty free spins.';
+    $('family-progress').classList.toggle('earned',count===3);
   }
-  function pickupMeter(s){
-    const p=H.pickupProgress(s);
-    $('trio-meter').textContent='Trio '+(p.trio?'✓':Math.min(3,Math.max(...p.families))+'/3')+' +2';
-    $('rare-meter').textContent='Rares '+(p.pair?'✓':Math.min(2,p.rares)+'/2')+' +1';
+  function pickupMeter(s,p=H.pickupProgress(s),mask=s.mask,total=s.featureTotal){
+    const rank=H.radarRank(s.contacts);
+    familyTrail(mask);
+    $('rare-meter').textContent='Rares '+Math.min(2,p.rares)+'/2 · +1 spin';
+    $('rare-meter').classList.toggle('earned',p.pair);
+    $('rare-meter').title='Capture any two rare specimens to earn one free spin.';
+    $('breach-bank-number').textContent=format(total);
+    for(const entry of H.catalog){
+      const {cell,count}=rosterSpecies.get(entry.id),n=p.species[entry.id]??0;
+      const uncertain=Boolean(p.uncertain&(1<<entry.family)),locked=rank<entry.rank;
+      cell.disabled=busy||Boolean(batch);
+      count.textContent=(uncertain?'≥':'×')+n;
+      cell.classList.toggle('rank-locked',locked);cell.classList.toggle('caught',n>0);
+      cell.title=entry.name+' · '+entry.rarity+' · '+(uncertain?'at least ':'')+n+' captured this breach'+
+        (locked?' · Unlock at '+H.radarRanks[entry.rank].name+' radar ('+H.radarRanks[entry.rank].contacts+' UFOs)':'')+
+        (uncertain?' · Older records kept only family totals':'');
+      cell.setAttribute('aria-label',cell.title);
+    }
+    familyCards.forEach(({group,pips,text},i)=>{
+      const n=Math.min(3,p.families[i]),won=p.trioFamily===i;
+      [...pips.children].forEach((pip,j)=>pip.classList.toggle('on',j<n));
+      group.classList.toggle('filed',Boolean(mask&(1<<i)));
+      text.textContent=p.trio?(won?'Trio paid +2 spins':p.trioFamily==null?'Trio paid':'Trio closed'):(3-n)+' to trio · +2 spins';
+      group.title=p.trio?'The matching-trio award has paid for this breach.':'Capture '+(3-n)+' more from this family for two free spins. The first trio pays once per breach.';
+    });
   }
   function meters(){
     const s=current(),free=breachActive(s),pass=!free && s.patrolSpins>0,short=s.balance<s.stake,empty=s.balance<5;
@@ -126,6 +170,7 @@
     const waiting=passengerWaiting(s);
     const label=waiting?'LIFT':practice && !free?'RETURN':pass?'FREE':!free && empty?'REFILL':'SPIN';
     $('spin').firstChild.textContent=label;
+    $('spin').lastElementChild.dataset.legend=label;
     $('spin').classList.toggle('labeled',label!=='SPIN');
     $('spin').classList.toggle('key-watching',waiting && !busy);
     $('spin').ariaLabel=waiting?'Lift the Spin button for one free spin':label==='RETURN'?'Return to patrol':label==='REFILL'?'Refill free tokens':pass?'Use free patrol spin':free?'Play free spin':'Spin for '+s.stake+' tokens';
@@ -146,7 +191,6 @@
     cabinet.classList.toggle('double-bounty',doubleBounty);
     if(doubleBounty)$('mode').textContent='Double bounty';
     $('specimen-lights').hidden=!free;
-    familyTrail(s.mask);
     if(free)pickupMeter(s);
     $('case-count').textContent=H.catalog.filter(entry=>H.captured(s,entry)>0).length+'/'+H.catalog.length;
     radar(s.contacts);
@@ -166,20 +210,25 @@
     if(batch){batch.stopped=true;batchControl();}
   }
   async function runBatch(){
-    if(portraitPlay.matches)return;
+    if(portraitPlay.matches||dialog.open||winDialog.open)return;
     audio.unlock();audio.play('switch');
     if(batch){stopBatch();return;}
     if(busy||practice||passengerWaiting(state)||state.remaining||state.patrolSpins>0||state.balance<state.stake*3)return;
-    batch={stake:state.stake,turn:0,stopped:false};
+    batch={stake:state.stake,turn:0,stopped:false,played:0,total:0};
+    let last=null;
     try{
       for(let turn=1;turn<=3;turn++){
         if(batch.stopped||document.hidden||portraitPlay.matches)break;
         batch.turn=turn;
         const r=await patrol(true);
+        if(r)last=r;
         if(!r||r.passenger||r.triggered||r.rankUp||batch.stopped||turn===3)break;
         await wait(560);
       }
-    }finally{batch=null;restore();}
+    }finally{
+      batch=null;restore();
+      if(last)awards.patrol(last);
+    }
   }
   function report(s){
     const r=s.last;
@@ -229,10 +278,33 @@
     }
     if(s.last?.free && s.last.bounty){
       $('reels').querySelectorAll('.capsule').forEach(el=>el.classList.add('filed'));
-      const last=finalGrid.flat().map((id,k)=>s.last.variants?.[k]??id).filter(id=>speciesById[id]).pop();
-      if(last)scanSpecimen(last);
     }
-    meters();report(s);openEntryPanel();
+    meters();report(s);
+    if(s.last?.finished)awards.remember('Breach total',s.featureTotal);
+    else if(s.last?.patrolRun && !batch)awards.remember('Patrol total',s.last.patrolRun.total);
+    else awards.remember('Spin total',s.last?.payout);
+    maybeRecap(s);openEntryPanel();
+  }
+  function debriefTotal(d,title,acknowledge){
+    const details=[d.spins!=null?d.spins+' free '+(d.spins===1?'spin':'spins'):'Across all free spins'];
+    if(d.extra)details.push(d.extra+' extra earned');
+    if(d.lastSpin!=null)details.push('Last spin '+format(d.lastSpin)+' tokens');
+    awards.total({title,total:d.total,stake:d.stake,detail:details.join(' · ')},acknowledge);
+  }
+  function maybeRecap(s){
+    const d=s.lastDebrief,key=practice||slotKey;
+    if(!s.last?.finished||!d?.number||d.seen||seenDebriefs.get(key)===d.number||busy||batch||dialog.open||winDialog.open||portraitPlay.matches)return;
+    debriefTotal(d,practice?'Training breach total':'Containment Breach total',()=>{
+      d.seen=true;
+      if(typeof key==='string'){
+        seenDebriefs.set(key,d.number);
+        if(key===slotKey)lock(()=>{
+          reload();
+          if(state.lastDebrief?.number===d.number){state.lastDebrief.seen=true;save();}
+        });
+      }
+      openEntryPanel();
+    });
   }
   function playAnim(el,frames,opts){
     const anim=el.animate(frames,opts);
@@ -584,7 +656,7 @@
     const live=inBreach?tileEl.querySelector('.creature'):tileEl;
     if(!reduced.matches)await wait(index*190);
     audio.play('creature',j);
-    if(reduced.matches){scanSpecimen(id);onArrival(j,award);return;}
+    if(reduced.matches){onArrival(id,award);return;}
     const from=center(live), target=center(agent), readout=center($('read-value'));
     const dx=target[0]-from[0], dy=target[1]-from[1];
     tileEl.classList.add('caught');agent.classList.add('extracting');
@@ -601,12 +673,12 @@
       {transform:'translate('+dx*.28+'px,'+(dy*.28-size*.45)+'px) rotate('+tilt+'deg) scale(1.23)',offset:.42},
       {transform:'translate('+dx+'px,'+dy+'px) rotate('+(-tilt)+'deg) scale(.12)',opacity:.15}],
       {duration:620,easing:'cubic-bezier(.34,0,.75,1)'});
-    flyer.remove();scanSpecimen(id);burst(...target,10);audio.play('filed');
+    flyer.remove();burst(...target,10);audio.play('filed');
     const token=document.createElement('b');token.className='sample-flight';token.textContent='+'+award;
     token.style.left=target[0]+'px';token.style.top=target[1]+'px';$('effects').append(token);
     await playAnim(token,[{transform:'translate(-50%,-50%)'},
       {transform:'translate('+(readout[0]-target[0])+'px,'+(readout[1]-target[1])+'px) scale(.45)',opacity:.1}],
-      {duration:380,easing:'ease-in'});token.remove();onArrival(j,award);
+      {duration:380,easing:'ease-in'});token.remove();onArrival(id,award);
   }
   async function firstCapture(entry){
     const reveal=document.createElement('div');
@@ -695,7 +767,7 @@
     }
     return grid;
   }
-  async function celebrate(r,s,openingBalance){
+  async function celebrate(r,s,openingBalance,pickupBefore){
     if(r.lineWins.length){
       const reacted=new Set(),voices=new Set(),steps=new Set(),reactions=[];
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -724,10 +796,21 @@
       const catchGrid=r.tractor?await tractorPasses(r,s.stake):r.grid;
       let recovered=0,mask=r.priorMask;
       monitor('Jar bounty','0','RETRIEVING');
-      const onArrival=(family,award)=>{
+      const onArrival=(id,award)=>{
         recovered+=award;
         monitor('Jar bounty',format(recovered),'TOKENS');
-        if(r.free){mask|=1<<family;familyTrail(mask);}
+        if(pickupBefore){
+          const {family,rank}=speciesById[id];
+          mask|=1<<family;
+          pickupBefore.families[family]++;
+          pickupBefore.species[id]=(pickupBefore.species[id]??0)+1;
+          if(rank)pickupBefore.rares++;
+          if(pickupBefore.rares>=2)pickupBefore.pair=true;
+          if(s.pickups.trioFamily===family && pickupBefore.families[family]>=3){
+            pickupBefore.trio=true;pickupBefore.trioFamily=family;
+          }
+          pickupMeter(s,pickupBefore,mask,s.featureTotal-r.bounty+recovered);markCapture(id);
+        }
       };
       const flights=[],heavy=[],agent=columns[3].querySelector('.agent');
       for(let c=0;c<5;c++)catchGrid[c].forEach((id,row)=>{
@@ -742,7 +825,7 @@
         $('mode').textContent='Tether reversal';$('mission').textContent='Voidback on the line';
         monitor('Tractor load','MAX','ANCHOR SLIPPING');
         await IncidentCamera.tow({stage:cabinet,source:agent,target:slot,caption:log});
-        slot.classList.add('filed');scanSpecimen('void');audio.play('filed');onArrival(speciesById.void.family,award);
+        slot.classList.add('filed');audio.play('filed');onArrival('void',award);
       }
       burst(...center($('read-value')),32);
       for(const id of r.discoveries)await firstCapture(speciesById[id]);
@@ -762,20 +845,20 @@
     }
     if(r.free)pickupMeter(s);
     if(r.triggered || r.spinAwards?.length || r.finished){
-      if(r.triggered)await changeScene(true,'Quarantine bay sealed · 8 free spins');
+      if(r.triggered){pickupMeter(s);$('specimen-lights').hidden=false;await changeScene(true,'Quarantine bay sealed · 8 free spins');}
       if(r.spinAwards?.length){
         if(r.caseClosed)audio.play('case');
         await showSpinAward(spinAwardNames(r.spinAwards),s.remaining-r.spinsAfterUse,r.spinsAfterUse,s.remaining,
           $('reels').querySelector('.capsule.filed,.capsule')??$('reels'));
       }
       if(r.finished)await changeScene(false,format(s.featureTotal)+' tokens recovered');
-    } else if(r.payout>=s.stake*15)await announce('Bureau commendation','Major recovery',format(r.payout)+' tokens');
+    }
   }
   async function patrol(fromBatch=false){
-    if(portraitPlay.matches||busy||dialog.open||(batch && fromBatch!==true))return;
-    audio.unlock();audio.play('switch');busy=true;meters();
+    if(portraitPlay.matches||busy||dialog.open||winDialog.open||(batch && fromBatch!==true))return;
+    awards.clear();audio.unlock();audio.play('switch');busy=true;meters();
     try{
-      let r=null,openingBalance=0;
+      let r=null,openingBalance=0,pickupBefore=null;
       await lock(()=>{
         if(portraitPlay.matches)return;
         if(!practice)reload();
@@ -788,11 +871,18 @@
         let demoSeed=practice?.drillType==='void'?484:10066;
         const demoDraw=()=>((demoSeed=(Math.imul(demoSeed,1664525)+1013904223)>>>0)/4294967296);
         const previous=s.last;
+        if(s.remaining){
+          const p=H.pickupProgress(s);
+          pickupBefore={...p,families:[...p.families],species:{...p.species}};
+        }
         const staged=devEnabled && !practice?dev.plan(s,devOptions,random):null;
         const scripted=practice && !previous && (practice.tractorDrill||practice.drillType==='void');
         r=H.spin(s,scripted?demoDraw:random,staged);
         if(!r)return;
         r.stake=s.stake;openingBalance=s.balance-r.payout;
+        if(fromBatch===true){
+          batch.played++;batch.total+=r.payout;r.patrolRun={spins:batch.played,total:batch.total};
+        }
         if(practice)reload();
         const recorded=SecurityTapes.record(state,r,previous,Boolean(practice));
         if(!practice||recorded)save();
@@ -801,20 +891,21 @@
       const s=current();$('balance').textContent=format(openingBalance);
       if(r.patrolFree){$('mode').textContent='Free patrol spin';$('mission').textContent='Button Mimic · stake covered';}
       log(r.patrolFree?'Button Mimic free spin. 0 tokens spent.':r.free?'Containment scan in progress…':'Patrol scan in progress…');monitor('Scanning','•••','REELS ACTIVE');
-      await roll(r,s);await celebrate(r,s,openingBalance);
+      await roll(r,s);await celebrate(r,s,openingBalance,pickupBefore);
       if(r.passenger){
         const k=r.passenger.slot;
         $('mode').textContent='Uninvited passenger';$('mission').textContent='Movement in the cabinet';
         await IncidentCamera.escape({stage:cabinet,source:columns[Math.floor(k/3)].firstChild.children[k%3],target:$('spin'),caption:log});
       }
+      if(!r.finished)awards.spin(r,s);
       return r;
     } finally {busy=false;if(!practice)reload();restore();}
   }
   async function activateSpin(){
-    if(busy||batch||dialog.open||portraitPlay.matches)return;
+    if(busy||batch||dialog.open||winDialog.open||portraitPlay.matches)return;
     if(!passengerWaiting(current()))return patrol();
     const number=current().last.tapeNumber;
-    busy=true;audio.unlock();meters();
+    awards.clear();busy=true;audio.unlock();meters();
     try{
       const found=await lock(()=>{
         reload();
@@ -831,6 +922,7 @@
         monitor('Control deck','OPEN','EVIDENCE');
         await IncidentCamera.unmask({stage:cabinet,source:$('spin'),target:$('reels'),caption:log});
         await showSpinAward('Button Mimic',1,found.before,found.after,$('spin'),found.kind);
+        awards.spin(current().last,current());
       }
     }finally{busy=false;if(!practice)reload();restore();}
   }
@@ -844,6 +936,7 @@
   }
   function openPaper(title,body){
     if(busy||batch)return;
+    awards.clear();
     dialog.classList.remove('archive','tape-room','dev-console');
     if(!navigator.userActivation || navigator.userActivation.hasBeenActive){audio.unlock();audio.play('switch');}
     $('paper').innerHTML='<h2>'+title+'</h2>'+body;
@@ -867,7 +960,7 @@
       try{sessionStorage.setItem(devSession,enabled?'on':'off');}catch{}
     }
     if(enabled)practice=null;
-    dialog.close();scanSpecimen('green');restore();$('spin').focus();
+    dialog.close();restore();if(!winDialog.open)$('spin').focus();
   }
   function devPanel(){
     if(busy||batch||portraitPlay.matches)return;
@@ -901,6 +994,7 @@
       $('dev-last').hidden=false;
     }
     $('dev-exit').onclick=()=>applyDevSettings(false);
+    $('dev-preview-win').onclick=()=>awards.total({title:'Bonus total preview',total:current().stake*100,stake:current().stake,detail:'Dev preview · '+current().stake+'-token stake'});
     form.onsubmit=e=>{
       e.preventDefault();
       applyDevSettings(true,{chance:Number(form.elements.chance.value),focus:select.value});
@@ -910,23 +1004,26 @@
     if(busy||batch||portraitPlay.matches)return;
     audio.unlock();busy=true;
     const staged=kind==='void'||kind==='passenger';
-    const entering=kind!=='leave';
+    const entering=kind!=='leave',leaving=practice;
     if(entering){
       reload();
       practice=H.newGame();practice.practice=true;practice.drillType=kind;
       practice.tractorDrill=kind==='tractor'||kind==='passenger';
       practice.remaining=kind==='breach'?8:1;
-      practice.breachStats={specimens:0,bestCatch:0};practice.stake=state.stake;
+      practice.breachStats={specimens:0,bestCatch:0,spins:0};practice.stake=state.stake;
       practice.contacts=kind==='void'?Math.max(24,state.contacts):state.contacts;
       practice.featureRank=H.radarRank(practice.contacts);
       practice.featureAgent=H.radarRanks[practice.featureRank].agent;
+      pickupMeter(practice);$('specimen-lights').hidden=false;
     }else{practice=null;reload();}
     dialog.close();
     for(const id of ['batch','spin','manual','files','up','down','tapes','dev'])$(id).disabled=true;
     try{
       if(entering)await changeScene(true,kind==='breach'?'Training drill · 8 free spins':kind==='tractor'?'Tractor Lock · training demonstration':kind==='void'?'Incident drill · Voidback':'Incident drill · Uninvited passenger');
       else if(!state.remaining)await changeScene(false,'Training drill complete');
-    }finally{busy=false;restore();$('spin').focus();}
+    }finally{busy=false;restore();if(!winDialog.open)$('spin').focus();}
+    if(!entering && leaving?.last && !leaving.last.finished && !winDialog.open)
+      debriefTotal({...leaving.breachStats,total:leaving.featureTotal,stake:leaving.stake,extra:leaving.pickups?.extra},'Training breach total');
     if(staged)await patrol();
   }
   function fieldManual(){
@@ -992,6 +1089,10 @@
           audio.play(correct?'filed':'close');
           const final=index===subjects.length-1;
           $('lab-result').textContent=(correct?'Confirmed. ':'Identified as '+subject.name+'. ')+(final?'Assignment complete. '+score+' of 3 correct.':subject.name+' · '+subject.damage+' damage.');
+          if(final){
+            const total=document.createElement('strong');total.className='lab-total';total.textContent='Training total · 0 tokens';
+            $('lab-result').append(total);
+          }
           next.hidden=false;next.textContent=final?'New assignment':'Next plate';
           next.focus();
         };
@@ -1002,15 +1103,16 @@
     $('lab-back').onclick=()=>{files();$('open-lab').focus();};
     showPlate();
   }
-  function files(){
+  function files(speciesId){
     const s=current(),title=practice?'Training case file':devEnabled?'Dev case file':'Alien case file';
     const found=H.catalog.filter(entry=>H.captured(s,entry)>0).length;
+    const progress=breachActive(s)?H.pickupProgress(s):null;
     const breachStatus=s.remaining?' · '+[1,2,4].filter(bit=>s.mask&bit).length+'/3 families this breach':'';
     openPaper(title,'<div class="archive-progress"><strong>'+found+' / '+H.catalog.length+' species filed</strong><progress max="'+H.catalog.length+'" value="'+found+'" aria-label="Species collection"></progress></div><p>'+s.captures.reduce((a,b)=>a+b,0)+' specimens collected · '+s.cases+' '+(s.cases===1?'case':'cases')+' closed'+breachStatus+'</p><div class="case-grid"></div>');
     dialog.classList.add('archive');
     const grid=$('paper').querySelector('.case-grid');
-    if(breachActive(s)){
-      const p=H.pickupProgress(s),goals=document.createElement('section');goals.className='pickup-goals';
+    if(progress){
+      const p=progress,goals=document.createElement('section');goals.className='pickup-goals';
       const heading=document.createElement('h3');heading.textContent='This breach · free-spin pickups';goals.append(heading);
       for(const text of [
         'Matching trio · +2 spins · '+(p.trio?'Earned':H.species.map((name,i)=>name+' '+Math.min(3,p.families[i])+'/3').join(' · ')),
@@ -1037,7 +1139,9 @@
       const families=H.species.filter((_,i)=>mask&(1<<i));
       info.textContent=(families.length?families.join(', '):'No families filed')+'.'+(specimens!=null?' '+specimens+' specimens recovered. Largest single collect '+format(bestCatch)+' tokens.':'');
       if(s.lastDebrief.extra)info.textContent+=' '+s.lastDebrief.extra+' extra free spins earned.';
-      debrief.append(heading,info);grid.before(debrief);
+      const replay=document.createElement('button');replay.className='action';replay.textContent='Replay win count-up';
+      replay.onclick=()=>debriefTotal({...s.lastDebrief,stake:s.lastDebrief.stake??(s.last?.finished?s.last.stake:undefined)},'Last breach replay');
+      debrief.append(heading,info,replay);grid.before(debrief);
     }
     for(const entry of H.catalog){
       const count=H.captured(s,entry),tier=H.radarRanks[entry.rank],locked=H.radarRank(s.contacts)<entry.rank;
@@ -1049,7 +1153,17 @@
       summary.querySelector('.case-art').append(creature(entry.id));
       const info=document.createElement('div');info.className='incident';
       info.innerHTML='<b>Damage '+entry.damage+'</b><p>'+(count?entry.incident:locked?'Requires '+tier.name+' radar clearance.':'Capture this specimen with an agent to recover its incident report.')+'</p><small>'+H.species[entry.family]+' family</small>';
+      if(progress){
+        const line=document.createElement('p'),captured=progress.species[entry.id]??0;
+        const prefix=progress.uncertain&(1<<entry.family)?'at least ':'';
+        const left=Math.max(0,3-progress.families[entry.family]);
+        line.className='case-breach-count';
+        line.textContent='This breach · '+prefix+captured+' captured. '+(progress.trio?'Trio reward earned.':left+' more from the '+H.species[entry.family]+' family for +2 free spins.');
+        if(entry.rank)line.textContent+=progress.pair?' Rare pair reward earned.':' '+(2-progress.rares)+' more rare '+(progress.rares===1?'capture':'captures')+' for +1 free spin.';
+        info.prepend(line);
+      }
       card.append(summary,info);grid.append(card);
+      if(speciesId===entry.id){card.open=true;summary.focus({preventScroll:true});card.scrollIntoView({block:'center'});}
     }
     const dossier=document.createElement('details');dossier.className='clearance';
     dossier.innerHTML='<summary>Radar clearance · '+s.contacts+' UFO contacts</summary><p>Every UFO earns one point. New radar ranks take effect on the next paid spin. More frequent breaches have a lower chance of an agent on each free spin.</p>';
@@ -1077,10 +1191,10 @@
   $('up').onclick=()=>changeStake(1);$('down').onclick=()=>changeStake(-1);
   $('files').onclick=files;$('manual').onclick=fieldManual;$('dev').onclick=devPanel;$('close').onclick=()=>dialog.close();
   dialog.onclick=e=>{if(e.target===dialog)dialog.close();};
-  dialog.addEventListener('close',()=>{SecurityTapes.eject();audio.play('close');});
+  dialog.addEventListener('close',()=>{SecurityTapes.eject();audio.play('close');maybeRecap(current());});
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem('alien-hunter.sound',sound?'on':'off');}catch{}audio.setEnabled(sound);audio.unlock();audio.play('switch');soundControl();};
   document.addEventListener('keydown',e=>{
-    if(e.code==='Space' && !e.repeat && !dialog.open && (document.activeElement===document.body || document.activeElement===$('spin'))){
+    if(e.code==='Space' && !e.repeat && !dialog.open && !winDialog.open && (document.activeElement===document.body || document.activeElement===$('spin'))){
       e.preventDefault();if(!$('spin').disabled)activateSpin();
     }
   });
@@ -1088,23 +1202,24 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopBatch();});
   let entryPanel=location.hash;
   function openEntryPanel(){
-    if(!entryPanel||busy||batch||portraitPlay.matches)return;
+    if(!entryPanel||busy||batch||winDialog.open||portraitPlay.matches)return;
     const open=entryPanel;entryPanel=null;
     if(open==='#tapes')tapeRoom();
     if(open==='#dev')devPanel();
   }
   function syncOrientation(){
+    awards.orientation(portraitPlay.matches);
     document.querySelector('main').inert=portraitPlay.matches;
     if(portraitPlay.matches){
       stopBatch();
       if(dialog.open)dialog.close();
     }
-    else openEntryPanel();
+    else {maybeRecap(current());openEntryPanel();}
   }
   window.addEventListener('hashchange',()=>{entryPanel=location.hash;syncOrientation();});
   portraitPlay.addEventListener('change',syncOrientation);
   syncOrientation();
-  scanSpecimen('green');restore();
+  restore();
 })();
 
 

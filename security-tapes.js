@@ -212,6 +212,10 @@ window.SecurityTapes=(()=>{
     audio.play('tape-load');
     project(tape,stage,tile,projector,instance.signal,caption).then(()=>{
       if(instance.signal.aborted)return;
+      const slate=document.createElement('div');slate.className='tape-end-total';
+      const label=document.createElement('small');label.textContent='Recorded spin total';
+      const amount=document.createElement('b');amount.textContent=tape.payout.toLocaleString('en-GB');
+      slate.append(label,amount,document.createTextNode('tokens won'));stage.querySelector('.tape-board').append(slate);
       status.textContent='■ END';pause.disabled=true;audio.play('tape-eject');
     }).catch(error=>{
       if(error.name==='AbortError')return;

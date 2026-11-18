@@ -68,10 +68,25 @@
     return grid.flat().filter((id,k)=>jars.includes(id) && r.variants?.[k]).length;
   }
   function pickupProgress(s){
-    if(s.pickups)return s.pickups;
     const last=s.last?.free?s.last:null;
-    return {families:jars.map((_,i)=>Math.max(s.mask&(1<<i)?1:0,last?.caught?.[i]??0)),
+    const p=s.pickups??{families:jars.map((_,i)=>Math.max(s.mask&(1<<i)?1:0,last?.caught?.[i]??0)),
       rares:rareCatchCount(last),trio:false,pair:false,extra:0};
+    if(p.species)return p;
+    // Older saves kept family totals and the last catch, but not every species.
+    const counts={},grid=last?.tractor?.passes.at(-1)??last?.grid;
+    if(last?.bounty)grid.flat().forEach((face,k)=>{
+      if(jars.includes(face)){const id=last.variants?.[k]??face;counts[id]=(counts[id]??0)+1;}
+    });
+    const left=p.families.map((n,i)=>Math.max(0,n-(counts[jars[i]]??0)-(counts[rareFamilies[i].id]??0)));
+    const remaining=left.reduce((a,b)=>a+b,0);
+    const rare=Math.min(remaining,Math.max(0,p.rares-rareFamilies.reduce((sum,f)=>sum+(counts[f.id]??0),0)));
+    p.uncertain=0;
+    left.forEach((n,i)=>{
+      const lo=Math.max(0,rare-(remaining-n)),hi=Math.min(n,rare),id=rareFamilies[i].id;
+      counts[id]=(counts[id]??0)+lo;counts[jars[i]]=(counts[jars[i]]??0)+n-hi;
+      if(lo!==hi)p.uncertain|=1<<i;
+    });
+    p.species=counts;return p;
   }
   function doubleLeft(s){return s.doubleSpins??(s.enhanced?Math.min(2,s.remaining):0);}
   function doubleBounty(s){return s.remaining>0 && s.remaining<=doubleLeft(s);}
@@ -238,9 +253,9 @@
     if(result.triggered) {
       state.remaining=8; state.mask=0; state.enhanced=false; state.featureTotal=0; state.featureRank=rank;
       state.featureAgent=radarRanks[rank].agent;
-      state.breachStats={specimens:0,bestCatch:0};
+      state.breachStats={specimens:0,bestCatch:0,spins:0};
       state.doubleSpins=0;
-      state.pickups={families:[0,0,0],rares:0,trio:false,pair:false,extra:0};
+      state.pickups={families:[0,0,0],rares:0,trio:false,pair:false,extra:0,species:{}};
     } else if(free) {
       const progress=pickupProgress(state);state.pickups=progress;
       state.doubleSpins=Math.max(0,doubleLeft(state)-(result.enhanced?1:0));
@@ -248,6 +263,7 @@
       result.spinsAfterUse=state.remaining;result.spinAwards=[];
       state.featureTotal+=result.payout;
       if(state.breachStats){
+        if(Number.isInteger(state.breachStats.spins))state.breachStats.spins++;
         state.breachStats.specimens+=result.caught.reduce((sum,n)=>sum+n,0);
         state.breachStats.bestCatch=Math.max(state.breachStats.bestCatch,result.bounty);
       }
@@ -258,6 +274,7 @@
         for(const entry of catalog){
           const count=ids.filter(id=>id===entry.id).length;
           if(!count)continue;
+          progress.species[entry.id]=(progress.species[entry.id]??0)+count;
           if(captured(state,entry)===0)result.discoveries.push(entry.id);
           if(entry.rank)state.rareCaptures[entry.id]=(state.rareCaptures[entry.id]??0)+count;
         }
@@ -272,12 +289,13 @@
         result.spinAwards.push({id:'case',spins:2});
       }
       const trio=progress.families.findIndex(n=>n>=3);
-      if(!progress.trio && trio>=0){progress.trio=true;result.spinAwards.push({id:'trio',family:trio,spins:2});}
+      if(!progress.trio && trio>=0){progress.trio=true;progress.trioFamily=trio;result.spinAwards.push({id:'trio',family:trio,spins:2});}
       progress.rares+=rareCatchCount(result);
       if(!progress.pair && progress.rares>=2){progress.pair=true;result.spinAwards.push({id:'pair',spins:1});}
       for(const award of result.spinAwards){state.remaining+=award.spins;progress.extra+=award.spins;}
       result.finished=state.remaining===0 && !result.passenger;
-      if(result.finished)state.lastDebrief={...state.breachStats,total:state.featureTotal,mask:state.mask,extra:progress.extra};
+      if(result.finished)state.lastDebrief={...state.breachStats,total:state.featureTotal,mask:state.mask,extra:progress.extra,
+        stake:state.stake,lastSpin:result.payout,number:(state.lastDebrief?.number??0)+1};
     }
     state.last=result;
     return result;

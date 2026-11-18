@@ -85,12 +85,14 @@
     font:1000 italic clamp(24px,4.1vw,44px)/1 "Arial Black",Arial,sans-serif;letter-spacing:-.06em;
     touch-action:manipulation;
   }
-  .spin:before {content:"";position:absolute;left:50%;top:0;height:100%;aspect-ratio:1.55;max-width:99%;transform:translateX(-50%);background:url("assets/spin-key.webp") center/100% 100%;clip-path:ellipse(49% 48% at 50% 51%)}
+  .spin:before {inset:0 auto auto 50%;height:100%;aspect-ratio:1.55;max-width:99%;transform:translateX(-50%)}
   .spin:disabled,.spin:active:enabled {background:transparent}
   .spin:disabled {color:transparent;filter:brightness(.78)}
   .spin:hover:enabled,.bonus .spin {box-shadow:none}
   .spin:active:enabled {background-color:transparent;transform:translateY(1px)}
-  .spin.labeled span {inset:25% 23%;border-radius:30%;background:#b8e936;color:#1c310a;font-size:clamp(12px,2vw,22px)}
+  .spin.labeled span,.spin.labeled .mimic-key:after {padding:0 0 0 1%;align-items:center;text-indent:0;font-size:clamp(13px,5.15dvh,30px);line-height:1}
+  .spin.labeled span {inset:0 0 15%}
+  .spin.labeled .mimic-key:after {padding-bottom:11%}
   .beacon,.bonus .beacon {display:none}
   .bonus .bay {inset:0;z-index:-1;border-radius:10px}.bonus .bay-title {display:none}
   .bonus .mobile-title {display:flex;align-items:center;padding-inline:10px;background:linear-gradient(90deg,#21130abf,transparent),var(--bay-art) 75% 55%/cover}

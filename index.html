@@ -6,19 +6,21 @@
   <meta name="theme-color" content="#11140e">
   <title>Alien Hunter • Bureau Arcade</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="cabinet.css">
+  <link rel="stylesheet" href="cabinet.css?v=settlement-1">
   <link rel="stylesheet" href="breach.css?v=pickup-1">
-  <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="mobile.css?v=settlement-1">
   <link rel="stylesheet" href="incidents.css?v=incident-film-1">
   <link rel="stylesheet" href="dev-mode.css?v=dev-odds-1">
+  <link rel="stylesheet" href="settlement.css?v=settlement-1">
   <link rel="preload" as="image" href="assets/quarantine-bay.png" media="(min-width:1101px) and (pointer:fine)">
   <link rel="preload" as="image" href="assets/specimens.png" media="(min-width:1101px) and (pointer:fine)">
-  <script defer src="engine.js?v=pickup-1"></script>
+  <script defer src="engine.js?v=settlement-1"></script>
   <script defer src="dev-mode.js?v=pickup-1"></script>
-  <script defer src="sound.js?v=pickup-1"></script>
+  <script defer src="sound.js?v=settlement-1"></script>
   <script defer src="incidents.js?v=incident-film-1"></script>
-  <script defer src="security-tapes.js?v=pickup-1"></script>
-  <script defer src="cabinet.js?v=pickup-1"></script>
+  <script defer src="security-tapes.js?v=settlement-1"></script>
+  <script defer src="settlement.js?v=settlement-1"></script>
+  <script defer src="cabinet.js?v=settlement-1"></script>
 </head>
 <body>
 <main>
@@ -29,9 +31,13 @@
     </div>
     <div class="bay" aria-hidden="true"><div class="bay-title"><small><i></i> Facility lockdown</small><strong>Quarantine bay</strong></div></div>
     <div class="beacon left" aria-hidden="true"></div><div class="beacon right" aria-hidden="true"></div>
+    <section id="breach-roster" class="breach-roster" aria-label="Specimens captured this breach">
+      <div class="roster-header"><h2>Capture board</h2><div id="specimen-lights" hidden><b id="rare-meter"></b><b id="family-progress"></b></div></div>
+      <div class="roster-families" id="roster-families"></div>
+    </section>
     <div class="reels" id="reels" role="img" aria-label="Five reels, three rows"></div>
     <div class="instruments">
-    <div class="monitor" aria-hidden="true"><div id="scan-specimen"></div><div id="echo-scope" hidden><i></i><i></i><i></i></div><div class="scan"></div><div class="radar-meter" id="radar"><span><b id="radar-name"></b><b id="radar-points"></b></span><i><em></em></i></div><div id="specimen-lights" hidden><div class="family-row"><b id="family-progress"></b><i></i><i></i><i></i></div><div class="pickup-row"><b id="trio-meter"></b><b id="rare-meter"></b></div></div></div>
+    <div class="monitor"><div class="breach-bank"><small>Breach total</small><b id="breach-bank-number">0</b><span>tokens won</span></div><div id="echo-scope" hidden aria-hidden="true"><i></i><i></i><i></i></div><div class="scan" aria-hidden="true"></div><div class="radar-meter" id="radar"><span><b id="radar-name"></b><b id="radar-points"></b></span><i><em></em></i></div></div>
     <div class="readout"><small id="read-label">Bounty scanner</small><b id="read-value">READY</b><span id="read-unit">ON PATROL</span></div>
     <div class="credit"><span class="mobile-label">Balance</span><output id="balance">1,240</output></div>
     <div class="stake"><span class="mobile-label">Stake</span><output id="stake">5</output></div>
@@ -39,6 +45,9 @@
     <button class="spin" id="spin" aria-label="Spin for 5 tokens"><span>SPIN</span><i class="mimic-key" aria-hidden="true"></i></button>
     </div>
     <div class="fx-layer" id="effects" aria-hidden="true"></div>
+    <div id="spin-receipt" class="spin-receipt" hidden aria-hidden="true">
+      <strong id="receipt-heading"></strong><div class="receipt-sum"><b id="receipt-number"></b> <span>tokens won</span></div><small id="receipt-detail"></small>
+    </div>
     <div class="announcement" id="announcement" aria-hidden="true"><small id="announce-kicker"></small><strong id="announce-main"></strong><span id="announce-sub"></span></div>
     <div class="hatch" id="hatch" hidden aria-hidden="true">
       <div class="bay-reveal"><div><small id="hatch-status"></small><strong id="hatch-title"></strong><span id="hatch-detail"></span></div></div>
@@ -46,7 +55,8 @@
     </div>
   </div>
   <footer>
-    <p class="log"><i></i><span id="log" role="status" aria-live="polite">Bureau online. Ready for patrol.</span></p>
+    <div class="cabinet-status"><div class="last-award" id="last-award" hidden><small id="last-award-title"></small><span><b id="last-award-number"></b> tokens</span></div>
+      <p class="log"><i></i><span id="log" role="status" aria-live="polite">Bureau online. Ready for patrol.</span></p></div>
     <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="tapes" aria-label="Security tapes">Tapes</button><button id="manual">Field manual</button><button id="dev" aria-haspopup="dialog" aria-label="Dev mode settings">Dev</button><button id="sound" aria-pressed="false">Sound on</button></nav>
   </footer>
 </main>
@@ -58,6 +68,15 @@
   </div>
 </section>
 <dialog id="dialog"><div class="document"><button class="close" id="close" aria-label="Close">×</button><div id="paper"></div></div></dialog>
+<dialog id="win-dialog" aria-labelledby="win-scope" aria-describedby="win-speech">
+  <div class="win-panel">
+    <h2 id="win-scope"></h2>
+    <div class="win-face" aria-hidden="true"><strong id="win-comment"></strong><b id="win-value"></b><span>Tokens won</span></div>
+    <div class="win-gauge" aria-hidden="true"><i></i></div>
+    <p id="win-detail"></p><button type="button" id="win-control"></button>
+    <p class="sr" id="win-speech" role="status" aria-live="polite"></p>
+  </div>
+</dialog>
 <template id="dev-template">
   <form id="dev-form">
     <p class="dev-intro">Test spins use a separate wallet, case file and tape shelf. Your patrol resumes where you left it.</p>
@@ -66,7 +85,7 @@
     <label class="dev-label" for="dev-focus">Event focus</label>
     <select id="dev-focus" aria-describedby="dev-note"><option value="mix">Mix all events</option></select>
     <p id="dev-note" class="dev-hint" aria-live="polite"></p>
-    <div class="dev-actions"><button class="action" type="submit" id="dev-apply">Enable dev mode</button><button class="action" type="button" id="dev-exit" hidden>Exit dev mode</button><small id="dev-last" hidden></small></div>
+    <div class="dev-actions"><button class="action" type="submit" id="dev-apply">Enable dev mode</button><button class="action" type="button" id="dev-exit" hidden>Exit dev mode</button><button type="button" class="action" id="dev-preview-win">Preview bonus count-up</button><small id="dev-last" hidden></small></div>
   </form>
 </template>
 </body>
