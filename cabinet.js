@@ -211,7 +211,7 @@
       const last=finalGrid.flat().map((id,k)=>s.last.variants?.[k]??id).filter(id=>speciesById[id]).pop();
       if(last)scanSpecimen(last);
     }
-    meters();report(s);
+    meters();report(s);openEntryPanel();
   }
   function playAnim(el,frames,opts){
     const anim=el.animate(frames,opts);
@@ -818,6 +818,7 @@
   }
   function devPanel(){
     if(busy||batch||portraitPlay.matches)return;
+    SecurityTapes.eject();
     openPaper('Dev mode','');
     dialog.classList.add('dev-console');
     $('paper').append($('dev-template').content.cloneNode(true));
@@ -1020,19 +1021,21 @@
   });
   window.addEventListener('storage',e=>{if(e.key===slotKey&&!busy&&!practice){reload();restore();}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopBatch();});
+  let entryPanel=location.hash;
+  function openEntryPanel(){
+    if(!entryPanel||busy||batch||portraitPlay.matches)return;
+    const open=entryPanel;entryPanel=null;
+    if(open==='#tapes')tapeRoom();
+    if(open==='#dev')devPanel();
+  }
   function syncOrientation(){
     document.querySelector('main').inert=portraitPlay.matches;
     if(portraitPlay.matches){
       stopBatch();
       if(dialog.open)dialog.close();
     }
-    else if(entryPanel){
-      const open=entryPanel;entryPanel=null;
-      if(open==='#tapes')tapeRoom();
-      if(open==='#dev')devPanel();
-    }
+    else openEntryPanel();
   }
-  let entryPanel=location.hash;
   window.addEventListener('hashchange',()=>{entryPanel=location.hash;syncOrientation();});
   portraitPlay.addEventListener('change',syncOrientation);
   syncOrientation();
