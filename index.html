@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#11140e">
+  <title>Alien Hunter • Bureau Arcade</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="cabinet.css">
+  <link rel="stylesheet" href="breach.css">
+  <link rel="stylesheet" href="mobile.css">
+  <link rel="preload" as="image" href="assets/quarantine-bay.png" media="(min-width:1101px) and (pointer:fine)">
+  <link rel="preload" as="image" href="assets/specimens.png" media="(min-width:1101px) and (pointer:fine)">
+  <script defer src="engine.js"></script>
+  <script defer src="sound.js"></script>
+  <script defer src="cabinet.js"></script>
+</head>
+<body>
+<main>
+  <div class="cabinet" id="cabinet" aria-label="Alien Hunter arcade cabinet">
+    <h1 class="sr">Alien Hunter</h1>
+    <div class="cabinet-header"><div class="mobile-title" aria-hidden="true"><span>Alien Hunter</span><span class="bay-wordmark">Quarantine Bay</span></div>
+      <div class="ticker"><strong id="mode">Field patrol</strong><span id="mission">3 UFOs unlock free spins</span></div>
+    </div>
+    <div class="bay" aria-hidden="true"><div class="bay-title"><small><i></i> Facility lockdown</small><strong>Quarantine bay</strong></div></div>
+    <div class="beacon left" aria-hidden="true"></div><div class="beacon right" aria-hidden="true"></div>
+    <div class="reels" id="reels" role="img" aria-label="Five reels, three rows"></div>
+    <div class="instruments">
+    <div class="monitor" aria-hidden="true"><div id="scan-specimen"></div><div id="echo-scope" hidden><i></i><i></i><i></i></div><div class="scan"></div><div class="radar-meter" id="radar"><span><b id="radar-name"></b><b id="radar-points"></b></span><i><em></em></i></div><div id="specimen-lights" hidden><b id="family-progress"></b><i></i><i></i><i></i></div></div>
+    <div class="readout"><small id="read-label">Bounty scanner</small><b id="read-value">READY</b><span id="read-unit">ON PATROL</span></div>
+    <div class="credit"><span class="mobile-label">Balance</span><output id="balance">1,240</output></div>
+    <div class="stake"><span class="mobile-label">Stake</span><output id="stake">5</output></div>
+    <div class="stake-keys"><button id="up" aria-label="Increase stake">▲</button><button id="down" aria-label="Decrease stake">▼</button></div>
+    <button class="spin" id="spin" aria-label="Spin for 5 tokens"><span>SPIN</span></button>
+    </div>
+    <div class="fx-layer" id="effects" aria-hidden="true"></div>
+    <div class="announcement" id="announcement" aria-hidden="true"><small id="announce-kicker"></small><strong id="announce-main"></strong><span id="announce-sub"></span></div>
+    <div class="hatch" id="hatch" hidden aria-hidden="true">
+      <div class="bay-reveal"><div><small id="hatch-status"></small><strong id="hatch-title"></strong><span id="hatch-detail"></span></div></div>
+      <div class="shutter upper"></div><div class="shutter lower"></div>
+    </div>
+  </div>
+  <footer>
+    <p class="log"><i></i><span id="log" role="status" aria-live="polite">Bureau online. Ready for patrol.</span></p>
+    <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="manual">Field manual</button><button id="sound" aria-pressed="false">Sound on</button></nav>
+  </footer>
+</main>
+<section class="rotate-screen" aria-labelledby="rotate-title">
+  <div class="rotate-scene" aria-hidden="true"><div class="rotate-specimen"></div></div>
+  <div class="rotate-copy"><span class="wordmark">Alien Hunter</span>
+    <h2 id="rotate-title"><i class="turn-phone" aria-hidden="true"></i>Rotate to play</h2>
+    <p>Turn your device sideways to open the cabinet.</p>
+  </div>
+</section>
+<dialog id="dialog"><div class="document"><button class="close" id="close" aria-label="Close">×</button><div id="paper"></div></div></dialog>
+</body>
+</html>
+
