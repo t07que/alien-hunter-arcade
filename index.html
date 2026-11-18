@@ -9,11 +9,14 @@
   <link rel="stylesheet" href="cabinet.css">
   <link rel="stylesheet" href="breach.css">
   <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="incidents.css?v=incident-film-1">
   <link rel="preload" as="image" href="assets/quarantine-bay.png" media="(min-width:1101px) and (pointer:fine)">
   <link rel="preload" as="image" href="assets/specimens.png" media="(min-width:1101px) and (pointer:fine)">
-  <script defer src="engine.js"></script>
-  <script defer src="sound.js"></script>
-  <script defer src="cabinet.js"></script>
+  <script defer src="engine.js?v=incident-film-1"></script>
+  <script defer src="sound.js?v=incident-film-1"></script>
+  <script defer src="incidents.js?v=incident-film-1"></script>
+  <script defer src="security-tapes.js?v=incident-film-1"></script>
+  <script defer src="cabinet.js?v=incident-film-1"></script>
 </head>
 <body>
 <main>
@@ -31,7 +34,7 @@
     <div class="credit"><span class="mobile-label">Balance</span><output id="balance">1,240</output></div>
     <div class="stake"><span class="mobile-label">Stake</span><output id="stake">5</output></div>
     <div class="stake-keys"><button id="up" aria-label="Increase stake">▲</button><button id="down" aria-label="Decrease stake">▼</button></div>
-    <button class="spin" id="spin" aria-label="Spin for 5 tokens"><span>SPIN</span></button>
+    <button class="spin" id="spin" aria-label="Spin for 5 tokens"><span>SPIN</span><i class="mimic-key" aria-hidden="true"></i></button>
     </div>
     <div class="fx-layer" id="effects" aria-hidden="true"></div>
     <div class="announcement" id="announcement" aria-hidden="true"><small id="announce-kicker"></small><strong id="announce-main"></strong><span id="announce-sub"></span></div>
@@ -42,7 +45,7 @@
   </div>
   <footer>
     <p class="log"><i></i><span id="log" role="status" aria-live="polite">Bureau online. Ready for patrol.</span></p>
-    <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="manual">Field manual</button><button id="sound" aria-pressed="false">Sound on</button></nav>
+    <nav aria-label="Cabinet controls"><button id="batch">3-spin patrol</button><button id="files">Case file <b id="case-count">0/6</b></button><button id="tapes" aria-label="Security tapes">Tapes</button><button id="manual">Field manual</button><button id="sound" aria-pressed="false">Sound on</button></nav>
   </footer>
 </main>
 <section class="rotate-screen" aria-labelledby="rotate-title">

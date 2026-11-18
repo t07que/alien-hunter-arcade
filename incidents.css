@@ -1,0 +1,68 @@
+.incident-shot {position:absolute;inset:0;z-index:8;pointer-events:none;overflow:hidden;isolation:isolate;background:radial-gradient(ellipse at 50% 57%,transparent 42%,#07101140)}
+.film-prop,.skid-sparks {position:absolute;left:0;top:0;aspect-ratio:1;will-change:transform;background-position:center;background-size:contain;background-repeat:no-repeat}
+.skid-agent {background-image:url("assets/tether-agent.webp");filter:drop-shadow(0 3px 3px #09110f) drop-shadow(0 0 1px #c6ffdc)}
+.mimic-sprite {background-image:url("assets/button-mimic.webp");filter:drop-shadow(1px 5px 3px #101809b0)}
+.incident-shot .tow-shell {background-size:300% 100%;background-position:100% center;filter:drop-shadow(0 4px 3px #120d07)}
+.tow-cable {position:absolute;inset:0;overflow:visible;fill:none;stroke-linecap:round}
+.cable-halo {stroke:#27ecbb;stroke-width:7;opacity:.7;filter:blur(2px)}
+.cable-core {stroke:#d9ffeb;stroke-width:2;stroke-dasharray:11 3;animation:tether-pulse .22s linear infinite}
+@keyframes tether-pulse {to{stroke-dashoffset:28}}
+.skid-sparks i {position:absolute;left:50%;top:50%;width:82%;height:3px;transform-origin:left center;transform:rotate(-9deg);background:linear-gradient(90deg,#fffbd0,#ffb039 30%,transparent);filter:drop-shadow(0 0 2px #ff9b33)}
+.skid-sparks i:nth-child(2){width:61%;transform:rotate(-32deg)}.skid-sparks i:nth-child(3){width:94%;transform:rotate(5deg)}
+.symbol.agent-out::after {content:"OFF REEL";position:absolute;inset:2%;z-index:3;display:grid;place-items:center;border:1px dashed #718679;border-radius:inherit;background:repeating-linear-gradient(0deg,#16231f 0 3px,#1d2c26 3px 4px);color:#82a592;font:700 clamp(9px,1.05cqw,16px) Consolas,monospace;letter-spacing:.08em;box-shadow:none}
+.heavy-specimen .glass .creature {visibility:hidden}
+.knocking-ring {border:2px solid #ffd86e;border-radius:50%;box-shadow:0 0 9px #efe09988}
+.knocking-jar {transform:rotate(var(--knock-angle,0deg));transform-origin:50% 92%}
+.evidence-stamp {position:absolute;transform:translate(-50%,-50%) rotate(-5deg);white-space:nowrap;padding:.16em .5em;background:#16201ceb;color:#d4ff92;border:3px double currentColor;font:900 clamp(13px,2.1cqw,36px)/1.1 Consolas,monospace;letter-spacing:.1em}
+.mimic-key {display:none;position:absolute;z-index:2;inset:0;margin:auto;max-width:100%;height:100%;aspect-ratio:1.55;border-radius:50%;background:radial-gradient(ellipse,#0c0e08 50%,#42331e 63%,#998254 66%,#211b11 73%);pointer-events:none}
+:is(.key-rattle,.key-watching,.key-open)>.mimic-key {display:block}
+.mimic-key::before,.mimic-key::after {content:"";position:absolute;inset:0;border-radius:50%}
+.mimic-key::before {background:radial-gradient(ellipse 1.8% 9% at 40% 77%,#1c190a 94%,transparent),radial-gradient(ellipse 1.8% 9% at 59% 77%,#1c190a 94%,transparent),radial-gradient(ellipse 6% 9% at 40% 77%,#fffcb9 20%,#ffbf3e 62%,#d56e15 95%,transparent),radial-gradient(ellipse 6% 9% at 59% 77%,#fffcb9 20%,#ffbf3e 62%,#d56e15 95%,transparent);animation:mimic-blink 3.4s infinite}
+.mimic-key::after {background:url("assets/spin-key.webp") center/100% 100% no-repeat;transform-origin:50% 12%;transform:perspective(300px) rotateX(28deg) translateY(-8%);clip-path:ellipse(49% 48% at 50% 51%);transition:transform .25s}
+.key-watching>.mimic-key::after {transform:perspective(320px) rotateX(51deg) translateY(-14%)}
+.key-open>.mimic-key::after {transform:perspective(300px) rotateX(76deg) translateY(-15%)}
+.key-open>.mimic-key::before {animation:none;opacity:0}
+.key-rattle>.mimic-key::after {animation:key-rattle .24s ease-in-out infinite alternate}
+@keyframes key-rattle {to{transform:perspective(300px) rotateX(34deg) rotate(-4deg) translateY(-5%)}}
+@keyframes mimic-blink {0%,66%,73%,100%{opacity:1}69%{opacity:.02}}
+@media(prefers-reduced-motion:reduce){.cable-core,.mimic-key::before,.key-rattle>.mimic-key::after{animation:none}.mimic-key::after{transition:none}}
+
+dialog.tape-room {border:1px solid #83907b;background:linear-gradient(130deg,#263029,#101714 68%);box-shadow:0 10px 70px #000d,inset 0 0 0 3px #111811}
+dialog.tape-room:has(.tape-stage) {width:min(780px,96vw,154dvh)}
+.tape-room .document h2 {color:#f2ecce;font-weight:850;letter-spacing:-.035em}
+.vault-intro {display:flex;align-items:center;gap:10px}
+.vhs-mark {flex:none;padding:1px 6px;border:2px solid #d0d3b5;border-radius:4px;color:#e8ecd0;font:900 italic 15px/1 Consolas,monospace;letter-spacing:-.09em}
+.drill-select {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+.incident-drill {position:relative;isolation:isolate;overflow:hidden;min-height:88px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;text-align:left;padding:11px;color:#f6efdc;border:1px solid #7e8d74;border-radius:5px;background:repeating-linear-gradient(0deg,#162522 0 3px,#182a25 3px 4px)}
+.incident-drill i {position:absolute;z-index:-1;inset:3% 1% 2% auto;width:39%;background-position:center;background-size:contain;background-repeat:no-repeat;filter:drop-shadow(-2px 3px 4px #000a)}
+.drill-tow i {background-image:url("assets/tether-agent.webp")}
+.drill-mimic {background:repeating-linear-gradient(0deg,#29271a 0 3px,#2f2b1c 3px 4px)}
+.drill-mimic i {background-image:url("assets/button-mimic.webp")}
+.incident-drill span,.camera-line,.tape-label small,.tape-console {font:700 11px/1.25 Consolas,monospace;letter-spacing:.08em;text-transform:uppercase}
+.incident-drill span {color:#ccedad}.incident-drill strong {font:800 clamp(16px,2.1vw,23px)/1.1 "Segoe UI",sans-serif;max-width:64%;text-shadow:0 1px 3px #000}
+.incident-drill:hover,.cassette:hover {border-color:#d5f59f}
+.cassette-rack {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.cassette-row {min-width:0}
+.cassette {width:100%;min-height:75px;border:1px solid #828178;border-radius:6px;padding:8px;display:flex;align-items:stretch;gap:7px;text-align:left;background:repeating-linear-gradient(0deg,#303231 0 2px,#262726 2px 4px);box-shadow:inset 0 1px #b5b0a044,0 3px 0 #0d0f0e}
+.tape-hubs {width:25px;min-height:50px;flex:none;border-radius:5px;border:1px solid #676760;background:radial-gradient(circle at 50% 24%,#20221e 0 3px,#b8bbae 4px 6px,#42453d 7px 9px,transparent 10px),radial-gradient(circle at 50% 76%,#20221e 0 3px,#b8bbae 4px 6px,#42453d 7px 9px,transparent 10px),#151b15}
+.tape-label {display:flex;flex:1;flex-direction:column;justify-content:center;gap:3px;padding:5px 8px;border-radius:2px;border-left:5px solid #bb4d3c;background:linear-gradient(100deg,#e5d8af,#cfc7a4);color:#22231b}
+.cassette .tape-label small {color:#394337;font-size:9px}.tape-label strong {font:800 16px/1.08 "Segoe UI",sans-serif}
+.tape-pin {min-height:36px;padding:3px 9px;background:transparent;border:0;color:#c8dfb9;font:700 12px Consolas,monospace}.tape-pin[aria-pressed=true]{color:#d9ff89}.tape-pin:disabled{opacity:.55}
+.tape-stage {position:relative;container-type:inline-size;isolation:isolate;display:grid;grid-template-columns:4.6fr 1fr;grid-template-rows:auto minmax(0,1fr);gap:6px;aspect-ratio:2.72;padding:7px 9px 9px;overflow:hidden;border:3px ridge #54625c;border-radius:6px;background:radial-gradient(ellipse at 40% 50%,#253e37,#070f0c)}
+.camera-line {grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:5px;color:#c4d8c9;font-size:clamp(9px,1.25vw,13px);font-variant-numeric:tabular-nums}
+.play-state {color:#ccf3a8}
+.tape-board {position:relative;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;overflow:hidden;border:2px solid #080e0b;background:#090d0b}
+.tape-col {position:relative;overflow:hidden;filter:saturate(.62) contrast(1.07)}
+.film-strip {position:absolute;inset:0}
+.tape-col .symbol {border-radius:2px}.tape-col .symbol .tag {font-size:clamp(8px,1.7cqw,16px)}
+.film-collect {outline:2px solid #b9f9ac;outline-offset:-3px}
+.tape-console {position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6%;border:1px solid #485b4b;background:repeating-linear-gradient(0deg,#111b15 0 2px,#162119 2px 4px);color:#aac3aa;font-size:clamp(9px,1.4cqw,14px)}
+.tape-tally {font-size:clamp(16px,3.7cqw,34px);color:#bbec96}
+.tape-key {position:relative;width:83%;aspect-ratio:1.55}
+.tape-stage::after {content:"";position:absolute;inset:0;pointer-events:none;z-index:9;border-radius:inherit;background:repeating-linear-gradient(0deg,transparent 0 3px,#071b151e 3px 4px);box-shadow:inset 0 0 15px #04100d77}
+.tape-key::before {content:"";position:absolute;inset:0;background:url("assets/spin-key.webp") center/100% 100% no-repeat;clip-path:ellipse(49% 48% at 50% 51%)}
+.tape-paused *,.tape-paused *::before,.tape-paused *::after {animation-play-state:paused!important}
+.transport-controls {display:flex;gap:6px;flex-wrap:wrap}.transport-controls .action {min-height:44px;margin:0}
+.play-caption {min-height:1.5em;font:600 clamp(12px,1.6vw,16px)/1.3 Consolas,monospace}
+@media(max-width:620px){.cassette-rack{grid-template-columns:1fr}.incident-drill{min-height:65px;padding:7px}.incident-drill strong{font-size:15px}}
+@media(pointer:coarse){.tape-pin{min-height:44px}.incident-drill{min-height:66px}}

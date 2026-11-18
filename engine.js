@@ -89,6 +89,16 @@
     result.payout+=catchResult.bounty-result.bounty;
     result.bounty=catchResult.bounty;
     result.caught=catchResult.caught;
+    if(!open.length && (!state.mimicsFound || rng()<1/3)){
+      const previous=passes.at(-2)??result.grid;
+      const c=[4,2,1,0].find(reel=>!previous[reel].some(id=>jars.includes(id)));
+      result.passenger={slot:c*3+grid[c].findIndex(id=>jars.includes(id)),found:false};
+    }
+  }
+  function voidbackSlots(result){
+    if(!result.free || !result.bounty)return [];
+    const grid=result.tractor?.passes.at(-1)??result.grid;
+    return grid.flat().flatMap((id,k)=>id==='amber' && result.variants[k]==='void'?[k]:[]);
   }
   function patrolSamples(grid,rng){
     for(let c=0;c<grid.length;c++){
@@ -218,7 +228,7 @@
     state.last=result;
     return result;
   }
-  const api={newGame,draw,evaluate,spin,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
+  const api={newGame,draw,evaluate,spin,voidbackSlots,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else window.Hunter=api;
 })();

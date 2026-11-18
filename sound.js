@@ -1,10 +1,12 @@
 // Short, gesture-unlocked Web Audio cues. Everything feeds one muteable cabinet mix.
 window.CabinetAudio = (() => {
   let ctx, mix, noiseBuffer;
+  const voices=new Set();
   let enabled = false;
   function setEnabled(value) {
     enabled = value;
     if (!enabled && ctx) {
+      voices.clear();
       ctx.close().catch(() => {});
       ctx = mix = noiseBuffer = null;
     }
@@ -38,7 +40,16 @@ window.CabinetAudio = (() => {
     else source.connect(envelope);
     envelope.connect(stereo).connect(mix);
     source.start(t); source.stop(t+duration+.01);
-    source.onended = () => {source.disconnect(); filter?.disconnect(); envelope.disconnect(); stereo.disconnect();};
+    voices.add(source);
+    source.onended = () => {voices.delete(source);source.disconnect(); filter?.disconnect(); envelope.disconnect(); stereo.disconnect();};
+  }
+  // Only the tape transport calls these, while its modal has control of the cabinet.
+  function pausePlayback(paused){
+    if(enabled && ctx && ctx.state!=='closed')(paused?ctx.suspend():ctx.resume()).catch(()=>{});
+  }
+  function stopPlayback(){
+    for(const source of voices){source.disconnect();try{source.stop();}catch{}}
+    voices.clear();pausePlayback(false);
   }
   function tone(hz,end,duration,gain=.075,delay=0,type='sine',pan=0) {
     const osc = ctx.createOscillator(), t=ctx.currentTime+delay;
@@ -64,6 +75,31 @@ window.CabinetAudio = (() => {
       }
       case 'close': tone(550,290,.1,.045); break;
       case 'lock-click': noise(1600,460,.08,.11);tone(740,990,.14,.07,.035,'sine',.32);break;
+      case 'tow-charge':
+        tone(76,153,.68,.12,0,'triangle');tone(228,456,.60,.048,.07);
+        noise(350,1750,.55,.10);break;
+      case 'tow-strain':
+        tone(168,134,.82,.11,0,'triangle');tone(336,265,.80,.06,.02);
+        noise(1800,920,.55,.09,.14);break;
+      case 'tow-skid':
+        [0,.19,.39,.57].forEach((d,i)=>{const pan=param*(i+1)/5;
+          noise(1350+i*180,410,.15,.15,d,pan);tone(680-i*50,225,.17,.045,d,'triangle',pan);});
+        break;
+      case 'tow-impact':
+        noise(900,140,.18,.17);tone(107,47,.36,.15,0,'triangle');tone(430,330,.22,.04,.09);break;
+      case 'jar-knock':
+        noise(1430,350,.048,.14);tone(240-param*17,88,.15,.12+param*.015,0,'triangle');
+        tone(670,590,.15,.038,.018,'sine',-.22);break;
+      case 'mimic-scuttle':
+        [0,.12,.21,.33,.41,.54,.63].forEach((d,i)=>noise(i%2?2800:1800,480,.055,.1,d,-.55+i*.18));
+        break;
+      case 'key-clack':
+        noise(3400,650,.085,.18);tone(180,420,.13,.067,.05,'triangle');break;
+      case 'mimic-protest':
+        [0,.17,.38].forEach((d,i)=>{tone(330+i*44,202,.17,.085,d,'triangle',.26);tone(660+i*66,403,.15,.045,d);});break;
+      case 'shutter': noise(4200,850,.065,.16);noise(1900,430,.10,.105,.095);break;
+      case 'tape-load': noise(2300,390,.17,.14);tone(72,130,.37,.085,.07,'triangle');break;
+      case 'tape-eject': noise(620,1730,.16,.13);tone(150,64,.22,.06,.05,'triangle');break;
       case 'tractor-arm':
         noise(340,1950,.36,.12);tone(96,192,.44,.09,0,'triangle');break;
       case 'jar-latch': {
@@ -137,5 +173,5 @@ window.CabinetAudio = (() => {
       case 'all-clear': [660,550,440].forEach((f,i)=>tone(f,f,.24,.085,i*.16));break;
     }
   }
-  return {setEnabled,unlock,play};
+  return {setEnabled,unlock,play,pausePlayback,stopPlayback};
 })();

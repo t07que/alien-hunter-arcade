@@ -32,6 +32,7 @@
   const audio=window.CabinetAudio;
   audio.setEnabled(sound);
   const current=()=>practice||state, format=n=>n.toLocaleString('en-GB');
+  const passengerWaiting=s=>Boolean(s.last?.passenger && !s.last.passenger.found);
   const wait=ms=>new Promise(done=>setTimeout(done,ms));
   const lock=job=>navigator.locks ? navigator.locks.request(slotKey,job) : Promise.resolve().then(job);
   function save() {
@@ -105,15 +106,17 @@
   function meters(){
     const s=current(),free=s.remaining>0,short=s.balance<s.stake,empty=s.balance<5;
     $('balance').textContent=format(s.balance);$('stake').textContent=s.stake;
-    const label=practice && !free?'RETURN':!free && empty?'REFILL':'SPIN';
+    const waiting=passengerWaiting(s);
+    const label=waiting?'LIFT':practice && !free?'RETURN':!free && empty?'REFILL':'SPIN';
     $('spin').firstChild.textContent=label;
     $('spin').classList.toggle('labeled',label!=='SPIN');
-    $('spin').ariaLabel=label==='RETURN'?'Return to patrol':label==='REFILL'?'Refill free tokens':free?'Play free spin':'Spin for '+s.stake+' tokens';
+    $('spin').classList.toggle('key-watching',waiting && !busy);
+    $('spin').ariaLabel=waiting?'Lift the Spin button and catch the stowaway':label==='RETURN'?'Return to patrol':label==='REFILL'?'Refill free tokens':free?'Play free spin':'Spin for '+s.stake+' tokens';
     const occupied=busy||!!batch;
-    $('spin').disabled=occupied || (!free && short && !empty && !practice);
-    $('up').disabled=occupied||free||!!practice||s.stake===20||s.balance<stakeOptions[stakeOptions.indexOf(s.stake)+1];
-    $('down').disabled=occupied||free||!!practice||s.stake===5;
-    $('manual').disabled=$('files').disabled=occupied;
+    $('spin').disabled=occupied || (!waiting && !free && short && !empty && !practice);
+    $('up').disabled=occupied||waiting||free||!!practice||s.stake===20||s.balance<stakeOptions[stakeOptions.indexOf(s.stake)+1];
+    $('down').disabled=occupied||waiting||free||!!practice||s.stake===5;
+    $('manual').disabled=$('files').disabled=$('tapes').disabled=occupied;
     batchControl();
     $('mode').textContent=free?(practice?'Breach drill':'Containment breach'):'Field patrol';
     $('mission').textContent=free?'Free spins left  '+s.remaining+(s.enhanced && s.remaining<=2?' · 2×':''):'3 UFOs unlock free spins';
@@ -132,7 +135,7 @@
   }
   function batchControl(){
     const s=current(),button=$('batch');
-    button.disabled=batch?batch.stopped:busy||!!practice||s.remaining>0||s.balance<s.stake*3;
+    button.disabled=batch?batch.stopped:busy||passengerWaiting(s)||!!practice||s.remaining>0||s.balance<s.stake*3;
     button.textContent=batch?(batch.stopped?'Stopping…':'Stop · '+batch.turn+'/3'):'3 spins · '+s.stake*3;
     button.title=batch?'Finish this spin and end the patrol':'Play up to 3 spins at '+s.stake+' tokens each';
     button.setAttribute('aria-label',batch?'Stop three-spin patrol':button.title);
@@ -144,20 +147,24 @@
     if(portraitPlay.matches)return;
     audio.unlock();audio.play('switch');
     if(batch){stopBatch();return;}
-    if(busy||practice||state.remaining||state.balance<state.stake*3)return;
+    if(busy||practice||passengerWaiting(state)||state.remaining||state.balance<state.stake*3)return;
     batch={stake:state.stake,turn:0,stopped:false};
     try{
       for(let turn=1;turn<=3;turn++){
         if(batch.stopped||document.hidden||portraitPlay.matches)break;
         batch.turn=turn;
         const r=await patrol(true);
-        if(!r||r.triggered||r.rankUp||batch.stopped||turn===3)break;
+        if(!r||r.passenger||r.triggered||r.rankUp||batch.stopped||turn===3)break;
         await wait(560);
       }
     }finally{batch=null;restore();}
   }
   function report(s){
     const r=s.last;
+    if(passengerWaiting(s)){
+      $('mode').textContent='Uninvited passenger';$('mission').textContent='Lift the Spin button';
+      monitor('Control deck','LIFT','COVER');log('Two eyes under the Spin button. Tap it to lift the cover.');return;
+    }
     if(!r){monitor(practice?'Training scanner':'Bounty scanner','READY',practice?'DRILL ACTIVE':'ON PATROL');log(practice?(s.tractorDrill?'Press Spin to run the Tractor Lock demonstration.':'Training wallet open. Eight practice spins.'):'Bureau online. Ready for patrol.');return;}
     if(r.finished){monitor('Mission total',format(s.featureTotal),'tokens');log('Breach contained. '+format(s.featureTotal)+' tokens. Debrief in the case file.');}
     else if(r.triggered){monitor('Breach detected','8','free spins');log('Three UFOs confirmed. Containment Breach awards eight free spins.');}
@@ -169,6 +176,7 @@
     }
     if(r.rankUp)log(H.radarRanks[H.radarRank(s.contacts)].name+' radar unlocked. UFO odds improve from your next paid spin.');
     if(!s.remaining && !practice && s.balance<s.stake) log(s.balance<5?'Patrol wallet empty. Press REFILL for 1,240 free tokens.':'Lower the stake to continue patrol.');
+    if(r.tapeNumber && (r.passenger?.found || !r.passenger))log((r.passenger?'Button Mimic found. ':'Voidback recovered. ')+format(r.payout)+' tokens. Security tape '+r.tapeNumber+' filed.');
   }
   function restore(){
     const s=current();
@@ -658,12 +666,22 @@
         monitor('Jar bounty',format(recovered),'TOKENS');
         if(r.free){mask|=1<<family;familyTrail(mask);}
       };
-      const flights=[],agent=columns[3].querySelector('.agent');
+      const flights=[],heavy=[],agent=columns[3].querySelector('.agent');
       for(let c=0;c<5;c++)catchGrid[c].forEach((id,row)=>{
         const j=H.jars.indexOf(id);if(j<0)return;
-        flights.push(retrieve(columns[c].firstChild.children[row],r.variants[c*3+row]??id,agent,flights.length,H.values[j]*s.stake*(r.enhanced?2:1),onArrival));
+        const slot=columns[c].firstChild.children[row],species=r.variants[c*3+row]??id;
+        const award=H.values[j]*s.stake*(r.enhanced?2:1);
+        if(species==='void')heavy.push({slot,award});
+        else flights.push(retrieve(slot,species,agent,flights.length,award,onArrival));
       });
-      await Promise.all(flights);burst(...center($('read-value')),32);
+      await Promise.all(flights);
+      for(const {slot,award} of heavy){
+        $('mode').textContent='Tether reversal';$('mission').textContent='Voidback on the line';
+        monitor('Tractor load','MAX','ANCHOR SLIPPING');
+        await IncidentCamera.tow({stage:cabinet,source:agent,target:slot,caption:log});
+        slot.classList.add('filed');scanSpecimen('void');audio.play('filed');onArrival(speciesById.void.family,award);
+      }
+      burst(...center($('read-value')),32);
       for(const id of r.discoveries)await firstCapture(speciesById[id]);
     }
     if(r.payout)audio.play('win');
@@ -694,22 +712,54 @@
         if(portraitPlay.matches)return;
         if(!practice)reload();
         const s=current();
+        if(passengerWaiting(s))return;
         if(fromBatch===true && (batch.stopped||document.hidden||s.remaining||s.balance<s.stake||s.stake!==batch.stake))return;
         if(!s.remaining && practice){practice=null;reload();return;}
         if(!s.remaining && s.balance<5){s.balance=1240;save();return;}
-        // A repeatable four-jar example for the explicitly selected practice drill.
-        let demoSeed=10066;
+        // The incident drills use repeatable examples selected from the training controls.
+        let demoSeed=practice?.drillType==='void'?484:10066;
         const demoDraw=()=>((demoSeed=(Math.imul(demoSeed,1664525)+1013904223)>>>0)/4294967296);
-        r=H.spin(s,practice?.tractorDrill?demoDraw:random);
+        const previous=s.last;
+        r=H.spin(s,practice?.tractorDrill||practice?.drillType==='void'?demoDraw:random);
         if(!r)return;
         r.stake=s.stake;openingBalance=s.balance-r.payout;
-        if(!practice)save();
+        if(practice)reload();
+        const recorded=SecurityTapes.record(state,r,previous,Boolean(practice));
+        if(!practice||recorded)save();
       });
       if(!r){restore();return;}
       const s=current();$('balance').textContent=format(openingBalance);log(r.free?'Containment scan in progress…':'Patrol scan in progress…');monitor('Scanning','•••','REELS ACTIVE');
       await roll(r,s);await celebrate(r,s,openingBalance);
+      if(r.passenger){
+        const k=r.passenger.slot;
+        $('mode').textContent='Uninvited passenger';$('mission').textContent='Movement in the cabinet';
+        await IncidentCamera.escape({stage:cabinet,source:columns[Math.floor(k/3)].firstChild.children[k%3],target:$('spin'),caption:log});
+      }
       return r;
     } finally {busy=false;if(!practice)reload();restore();}
+  }
+  async function activateSpin(){
+    if(busy||batch||dialog.open||portraitPlay.matches)return;
+    if(!passengerWaiting(current()))return patrol();
+    const number=current().last.tapeNumber;
+    busy=true;audio.unlock();meters();
+    try{
+      const found=await lock(()=>{
+        reload();
+        const s=current();
+        if(!passengerWaiting(s)||s.last.tapeNumber!==number)return false;
+        s.last.passenger.found=true;s.mimicsFound=(s.mimicsFound??0)+1;
+        const tape=(state.tapes??[]).find(entry=>entry.number===number);
+        if(tape)tape.revealed=true;
+        if(!practice||tape)save();
+        return true;
+      });
+      if(found){
+        $('mode').textContent='Deck inspection';$('mission').textContent='Cover released';
+        monitor('Control deck','OPEN','EVIDENCE');
+        await IncidentCamera.unmask({stage:cabinet,source:$('spin'),target:$('reels'),caption:log});
+      }
+    }finally{busy=false;if(!practice)reload();restore();}
   }
   async function changeStake(direction){
     if(busy||batch||practice)return;
@@ -721,11 +771,34 @@
   }
   function openPaper(title,body){
     if(busy||batch)return;
-    dialog.classList.remove('archive');
+    dialog.classList.remove('archive','tape-room');
     audio.unlock();audio.play('switch');
     $('paper').innerHTML='<h2>'+title+'</h2>'+body;
     if(!dialog.open)dialog.showModal();
     dialog.scrollTop=0;$('close').focus();
+  }
+  async function startDrill(kind){
+    if(busy||batch||portraitPlay.matches)return;
+    audio.unlock();busy=true;
+    const staged=kind==='void'||kind==='passenger';
+    const entering=kind!=='leave';
+    if(entering){
+      reload();
+      practice=H.newGame();practice.practice=true;practice.drillType=kind;
+      practice.tractorDrill=kind==='tractor'||kind==='passenger';
+      practice.remaining=kind==='breach'?8:1;
+      practice.breachStats={specimens:0,bestCatch:0};practice.stake=state.stake;
+      practice.contacts=kind==='void'?Math.max(24,state.contacts):state.contacts;
+      practice.featureRank=H.radarRank(practice.contacts);
+      practice.featureAgent=H.radarRanks[practice.featureRank].agent;
+    }else{practice=null;reload();}
+    dialog.close();
+    for(const id of ['batch','spin','manual','files','up','down','tapes'])$(id).disabled=true;
+    try{
+      if(entering)await changeScene(true,kind==='breach'?'Training drill · 8 free spins':kind==='tractor'?'Tractor Lock · training demonstration':kind==='void'?'Incident drill · Voidback':'Incident drill · Uninvited passenger');
+      else if(!state.remaining)await changeScene(false,'Training drill complete');
+    }finally{busy=false;restore();$('spin').focus();}
+    if(staged)await patrol();
   }
   function fieldManual(){
     openPaper('Field manual','<p>Spin five reels using free arcade tokens. Three or more matching mugshots or tools from the left pay on any of ten fixed lines.</p><h3>Line awards</h3><p>Three pay 2× your stake, four pay 8×, and five pay 25×. Each line pays its longest match.</p><div class="paylines" aria-label="Ten winning line patterns"></div><h3>Patrol bounties</h3><p>On patrol, an agent pays the value of every specimen jar on the same spin. Case-file discoveries and family rewards are earned during Containment Breach.</p><h3>Containment Breach</h3><p>UFOs on reels 1, 3 and 5 award eight free spins at the triggering stake. Agents and specimen jars appear more often here. When they land together, the agent collects every jar. Their tags show the token amounts.</p><h3>Tractor Lock</h3><p>On patrol or in a breach, one in three agent catches with an open jar reel and no UFO activates Tractor Lock. The agent and jar reels stay put. Each open reel has a 22% chance to land a jar per free rescan. Every pass that adds a jar starts another until all four are held or a pass comes up empty. The agent collects the whole catch once. Line awards use the opening spin.</p><h3>Close the case</h3><p>Capture all three bounty families in one breach to earn two extra spins. Jar values double during those two spins. Rare family members become available at higher radar ranks. Every species you capture gets its own incident record in the case file.</p><h3>Patrol encounters</h3><p>A visiting saucer can rewrite three symbols to complete a line or beam a UFO down to replace a reel symbol. A Sprout or Inkling can turn the tile beside it into a match. Line awards and UFO contacts use the final reel faces.</p><h3>Patrol odds</h3><p>Long-run token return 96.7%, including bonus awards. About one in seven paid spins pays a line award. Each result is drawn before the reels move.</p><small>Space spins · Escape closes this manual. Progress saves in this browser.</small>'
@@ -735,18 +808,8 @@
       for(let r=0;r<3;r++)for(let c=0;c<5;c++){const dot=document.createElement('i');if(line[c]===r)dot.className='on';el.append(dot);}
       document.querySelector('.paylines').append(el);
     });
-    async function drill(tractorDemo){
-      const entering=!practice;audio.unlock();busy=true;
-      if(practice){practice=null;reload();}
-      else {practice=H.newGame();practice.remaining=tractorDemo?1:8;practice.tractorDrill=tractorDemo;practice.practice=true;practice.breachStats={specimens:0,bestCatch:0};practice.stake=state.stake;practice.contacts=state.contacts;practice.featureRank=H.radarRank(state.contacts);practice.featureAgent=H.radarRanks[practice.featureRank].agent;}
-      dialog.close();$('batch').disabled=$('spin').disabled=$('manual').disabled=$('files').disabled=$('up').disabled=$('down').disabled=true;
-      try{
-        if(entering)await changeScene(true,tractorDemo?'Tractor Lock · training demonstration':'Training drill · 8 free spins');
-        else if(!state.remaining)await changeScene(false,'Training drill complete');
-      }finally{busy=false;restore();$('spin').focus();}
-    }
-    $('drill').onclick=()=>drill(false);
-    if($('tractor-drill'))$('tractor-drill').onclick=()=>drill(true);
+    $('drill').onclick=()=>startDrill(practice?'leave':'breach');
+    if($('tractor-drill'))$('tractor-drill').onclick=()=>startDrill('tractor');
   }
   const fieldNotes={
     green:'One eye and two curled feelers.',
@@ -820,6 +883,12 @@
     const lab=document.createElement('button');
     lab.id='open-lab';lab.className='action';lab.textContent='Evidence lab · Identify 3 scans';
     lab.onclick=evidenceLab;grid.before(lab);
+    const tapes=document.createElement('button');tapes.className='action';tapes.textContent='Security tapes';tapes.onclick=tapeRoom;grid.before(tapes);
+    if(s.mimicsFound){
+      const damage=document.createElement('details');damage.className='clearance';
+      damage.innerHTML='<summary>Control deck damage · Button Mimic</summary><p>Found beneath the Spin cover. Two claw marks in the brass and one bent return spring.</p>';
+      grid.before(damage);
+    }
     if(s.lastDebrief){
       const {total,mask,specimens,bestCatch}=s.lastDebrief;
       const debrief=document.createElement('details');debrief.className='clearance';
@@ -853,15 +922,25 @@
     }
     $('paper').append(dossier);
   }
-  $('spin').onclick=()=>patrol();$('batch').onclick=runBatch;
+  function tapeRoom(){
+    if(busy||batch||portraitPlay.matches)return;
+    reload();
+    SecurityTapes.shelf({dialog,openPaper,tile,startDrill,tapes:state.tapes??[],refresh:tapeRoom,
+      keep:number=>lock(()=>{
+        reload();const tapes=state.tapes??[],tape=tapes.find(item=>item.number===number);
+        if(!tape || (!tape.kept && tapes.filter(item=>item.kept).length>=6))return;
+        tape.kept=!tape.kept;state.tapes=SecurityTapes.trim(tapes);save();
+      })});
+  }
+  $('spin').onclick=activateSpin;$('batch').onclick=runBatch;$('tapes').onclick=tapeRoom;
   $('up').onclick=()=>changeStake(1);$('down').onclick=()=>changeStake(-1);
   $('files').onclick=files;$('manual').onclick=fieldManual;$('close').onclick=()=>dialog.close();
   dialog.onclick=e=>{if(e.target===dialog)dialog.close();};
-  dialog.addEventListener('close',()=>audio.play('close'));
+  dialog.addEventListener('close',()=>{SecurityTapes.eject();audio.play('close');});
   $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem('alien-hunter.sound',sound?'on':'off');}catch{}audio.setEnabled(sound);audio.unlock();audio.play('switch');soundControl();};
   document.addEventListener('keydown',e=>{
     if(e.code==='Space' && !e.repeat && !dialog.open && (document.activeElement===document.body || document.activeElement===$('spin'))){
-      e.preventDefault();if(!$('spin').disabled)patrol();
+      e.preventDefault();if(!$('spin').disabled)activateSpin();
     }
   });
   window.addEventListener('storage',e=>{if(e.key===slotKey&&!busy&&!practice){reload();restore();}});
@@ -872,7 +951,10 @@
       stopBatch();
       if(dialog.open)dialog.close();
     }
+    else if(openTapesOnEntry){openTapesOnEntry=false;tapeRoom();}
   }
+  let openTapesOnEntry=location.hash==='#tapes';
+  window.addEventListener('hashchange',()=>{openTapesOnEntry=location.hash==='#tapes';syncOrientation();});
   portraitPlay.addEventListener('change',syncOrientation);
   syncOrientation();
   scanSpecimen('green');restore();
