@@ -9,11 +9,13 @@
     {id:'contact',name:'Patrol radar contacts',group:'Reel effects',note:'Two UFOs fly into the radar. Each earns a contact toward the next rank.'},
     {id:'collect',name:'Agent jar collection',group:'Captures',note:'An agent lands with specimen jars and collects their token values.'},
     {id:'tractor',name:'Tractor Lock respins',group:'Captures',note:'An agent locks the jars in place. The first rescan lands another jar.'},
-    {id:'passenger',name:'Spin-button stowaway',group:'Captures',note:'A four-jar Tractor Lock releases the stowaway. Lift Spin to catch it.'},
+    {id:'passenger',name:'Spin-button stowaway',group:'Captures',note:'A four-jar Tractor Lock releases the stowaway. Lift Spin to bank one free spin.'},
     {id:'rare',name:'Rare specimen capture',group:'Captures',breach:true,note:'A boosted patrol opens a breach. Inside, an agent collects a rare species, favouring ones missing from the test case file.'},
     {id:'void',name:'Voidback tow',group:'Captures',breach:true,note:'A boosted patrol opens a breach. On boosted free spins, Voidback pulls the agent across the reels.'},
     {id:'breach',name:'Containment Breach',group:'Bonus rounds',note:'Three UFOs open eight free spins. Boosts inside the breach close the case and stage jar collections.'},
-    {id:'case',name:'Case closure & double bounty',group:'Bonus rounds',breach:true,note:'A boosted patrol opens a breach. Collect all three families to earn two extra double-bounty spins.'}
+    {id:'case',name:'Case closure & double bounty',group:'Bonus rounds',breach:true,note:'A boosted patrol opens a breach. Collect all three families to earn two extra double-bounty spins.'},
+    {id:'trio',name:'Matching trio · +2 spins',group:'Bonus rounds',breach:true,note:'A boosted patrol opens a breach. Three jars from one family pay two extra spins once per breach.'},
+    {id:'pair',name:'Rare pair · +1 spin',group:'Bonus rounds',breach:true,note:'A boosted patrol opens a breach. Two rare captures pay one extra spin once per breach.'}
   ];
   const rates=[50,80,100];
   function options(input){
@@ -30,7 +32,7 @@
   function choose(state,focus,rng){
     const free=state.remaining>0;
     if(focus==='mix'){
-      const pool=features.filter(f=>(free?f.id!=='breach' && !(f.id==='case' && state.enhanced):!f.breach) && f.id!==state.last?.devFeature);
+      const pool=features.filter(f=>(free?f.id!=='breach' && !(f.id==='case' && state.enhanced) && !state.pickups?.[f.id]:!f.breach) && f.id!==state.last?.devFeature);
       return pick(pool,rng).id;
     }
     const target=features.find(f=>f.id===focus);
@@ -72,11 +74,14 @@
     };
     if(feature==='case'){
       H.jars.forEach((_,family)=>jar(family));
-    }else if(feature==='void' || feature==='rare'){
+    }else if(feature==='trio'){
+      const family=row();for(let i=0;i<3;i++)jar(family);
+    }else if(feature==='void' || feature==='rare' || feature==='pair'){
       const rares=H.catalog.filter(entry=>entry.rank>0 && entry.rank<=H.radarRank(state.contacts));
       const unfiled=rares.filter(entry=>!H.captured(state,entry));
       const species=feature==='void'?H.catalog.find(entry=>entry.id==='void'):pick(unfiled.length?unfiled:rares,rng);
       jar(species.family,species.id);
+      if(feature==='pair'){const another=pick(rares,rng);jar(another.family,another.id);}
     }else{
       const lock=feature==='tractor' || feature==='passenger';
       if(lock)stage.lock=feature;

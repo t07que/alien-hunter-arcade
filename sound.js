@@ -74,6 +74,11 @@ window.CabinetAudio = (() => {
         tone(pitch,pitch,.12,.042,param*.085,'sine',(param-2)*.3);break;
       }
       case 'close': tone(550,290,.1,.045); break;
+      case 'spin-credit': {
+        const notes=[392,523,659,880];
+        notes.forEach((hz,i)=>tone(hz,hz*1.02,.20,.066,.095*i,'triangle',(i-1.5)*.2));
+        tone(176,264,.33,.095);if(param>1)tone(1046,1046,.34,.055,.42);break;
+      }
       case 'lock-click': noise(1600,460,.08,.11);tone(740,990,.14,.07,.035,'sine',.32);break;
       case 'tow-charge':
         tone(76,153,.68,.12,0,'triangle');tone(228,456,.60,.048,.07);

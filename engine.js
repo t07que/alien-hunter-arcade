@@ -24,12 +24,12 @@
     return entry.rank?rare:state.captures[entry.family]-rare;
   }
   const pay = [0,0,0,2,8,25];
-  // UFO probability per eligible reel; the matching agent rate prices a complete bonus
-  // (including case retriggers) into the same 96.7% long-run return at every rank.
+  // Agent frequency is tuned per radar rank for a 96.7% target return, including
+  // pickup extensions, double bounties, and the Button Mimic's free spins.
   const radarRanks = [
-    {name:'Patrol', contacts:0, ufo:.18, agent:.35417902},
-    {name:'Wideband', contacts:8, ufo:.19, agent:.31257076},
-    {name:'Deep scan', contacts:24, ufo:.20, agent:.27734601}
+    {name:'Patrol', contacts:0, ufo:.18, agent:.3132},
+    {name:'Wideband', contacts:8, ufo:.19, agent:.2761},
+    {name:'Deep scan', contacts:24, ufo:.20, agent:.2461}
   ];
   function radarRank(contacts=0) {
     return contacts>=radarRanks[2].contacts?2:contacts>=radarRanks[1].contacts?1:0;
@@ -62,6 +62,35 @@
   }
   const jars = ['green','pink','amber'];
   const values = [3,5,8];
+  function rareCatchCount(r){
+    if(!r?.free || !r.bounty)return 0;
+    const grid=r.tractor?.passes.at(-1)??r.grid;
+    return grid.flat().filter((id,k)=>jars.includes(id) && r.variants?.[k]).length;
+  }
+  function pickupProgress(s){
+    if(s.pickups)return s.pickups;
+    const last=s.last?.free?s.last:null;
+    return {families:jars.map((_,i)=>Math.max(s.mask&(1<<i)?1:0,last?.caught?.[i]??0)),
+      rares:rareCatchCount(last),trio:false,pair:false,extra:0};
+  }
+  function doubleLeft(s){return s.doubleSpins??(s.enhanced?Math.min(2,s.remaining):0);}
+  function doubleBounty(s){return s.remaining>0 && s.remaining<=doubleLeft(s);}
+  function honourMimics(s){
+    const owed=(s.mimicsFound??0)-(s.mimicPaid??0);
+    if(owed>0){s.patrolSpins=(s.patrolSpins??0)+owed;s.mimicPaid=s.mimicsFound;}
+    return s;
+  }
+  function claimPassenger(s){
+    const r=s.last,p=r?.passenger;
+    if(!p || p.found)return null;
+    honourMimics(s);
+    const before=r.free?s.remaining:(s.patrolSpins??0);
+    if(r.free){s.remaining++;s.pickups=pickupProgress(s);s.pickups.extra++;}
+    else s.patrolSpins=before+1;
+    s.mimicsFound=(s.mimicsFound??0)+1;s.mimicPaid=(s.mimicPaid??0)+1;p.found=true;
+    p.reward={kind:r.free?'breach':'patrol',spins:1,before,after:before+1};
+    return p.reward;
+  }
   function placeJar(column,c,rng,variants,clearance){
     const row=Math.floor(rng()*3),draw=rng()*3,family=Math.floor(draw);
     column[row]=jars[family];
@@ -152,7 +181,7 @@
   }
   function evaluate(grid, state, free) {
     let payout=0, ufos=0, hasAgent=false, bounty=0;
-    const doubled=free && state.enhanced && state.remaining<=2;
+    const doubled=free && doubleBounty(state);
     const winners=[], lineWins=[], caught=[0,0,0];
     const add=(c,r)=>{ const key=c*3+r; if(!winners.includes(key)) winners.push(key); };
     for (let i=0;i<lines.length;i++) {
@@ -184,8 +213,11 @@
       priorMask:state.mask,enhanced:doubled,sightings:ufos,caseClosed:false,finished:false};
   }
   function spin(state,rng=Math.random,staged=null) {
+    if(state.last?.passenger && !state.last.passenger.found)return null;
+    honourMimics(state);
     const free=state.remaining>0;
-    if(!free && state.balance<state.stake) return null;
+    const pass=!free && state.patrolSpins>0;
+    if(!free && !pass && state.balance<state.stake) return null;
     const rank=free?(state.featureRank??0):radarRank(state.contacts);
     const variants=staged?.variants??{};
     // Breaches saved before encounters shipped used this earlier agent paytable.
@@ -201,13 +233,19 @@
     result.discoveries=[];
     state.contacts=(state.contacts??0)+result.sightings;
     result.rankUp=!free && radarRank(state.contacts)>rank;
-    state.balance += result.payout-(free?0:state.stake);
+    if(pass){state.patrolSpins--;result.patrolFree=true;}
+    state.balance += result.payout-(free||pass?0:state.stake);
     if(result.triggered) {
       state.remaining=8; state.mask=0; state.enhanced=false; state.featureTotal=0; state.featureRank=rank;
       state.featureAgent=radarRanks[rank].agent;
       state.breachStats={specimens:0,bestCatch:0};
+      state.doubleSpins=0;
+      state.pickups={families:[0,0,0],rares:0,trio:false,pair:false,extra:0};
     } else if(free) {
+      const progress=pickupProgress(state);state.pickups=progress;
+      state.doubleSpins=Math.max(0,doubleLeft(state)-(result.enhanced?1:0));
       state.remaining--;
+      result.spinsAfterUse=state.remaining;result.spinAwards=[];
       state.featureTotal+=result.payout;
       if(state.breachStats){
         state.breachStats.specimens+=result.caught.reduce((sum,n)=>sum+n,0);
@@ -226,18 +264,25 @@
       }
       result.caught.forEach((count,i)=>{
         state.captures[i]+=count;
+        progress.families[i]+=count;
         if(count) state.mask |= (1<<i);
       });
       if(state.mask===7 && !state.enhanced) {
-        state.enhanced=true; state.remaining+=2; state.cases++; result.caseClosed=true;
+        state.enhanced=true;state.doubleSpins+=2;state.cases++;result.caseClosed=true;
+        result.spinAwards.push({id:'case',spins:2});
       }
-      result.finished=state.remaining===0;
-      if(result.finished)state.lastDebrief={...state.breachStats,total:state.featureTotal,mask:state.mask};
+      const trio=progress.families.findIndex(n=>n>=3);
+      if(!progress.trio && trio>=0){progress.trio=true;result.spinAwards.push({id:'trio',family:trio,spins:2});}
+      progress.rares+=rareCatchCount(result);
+      if(!progress.pair && progress.rares>=2){progress.pair=true;result.spinAwards.push({id:'pair',spins:1});}
+      for(const award of result.spinAwards){state.remaining+=award.spins;progress.extra+=award.spins;}
+      result.finished=state.remaining===0 && !result.passenger;
+      if(result.finished)state.lastDebrief={...state.breachStats,total:state.featureTotal,mask:state.mask,extra:progress.extra};
     }
     state.last=result;
     return result;
   }
-  const api={newGame,draw,regularGrid,applyEncounter,evaluate,spin,voidbackSlots,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
+  const api={newGame,draw,regularGrid,applyEncounter,evaluate,spin,claimPassenger,honourMimics,pickupProgress,doubleBounty,voidbackSlots,regular,lines,species,initialGrid,jars,values,pay,radarRanks,radarRank,catalog,captured,encounters};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else window.Hunter=api;
 })();

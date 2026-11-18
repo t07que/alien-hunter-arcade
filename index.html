@@ -7,18 +7,18 @@
   <title>Alien Hunter • Bureau Arcade</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="cabinet.css">
-  <link rel="stylesheet" href="breach.css">
+  <link rel="stylesheet" href="breach.css?v=pickup-1">
   <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="incidents.css?v=incident-film-1">
   <link rel="stylesheet" href="dev-mode.css?v=dev-odds-1">
   <link rel="preload" as="image" href="assets/quarantine-bay.png" media="(min-width:1101px) and (pointer:fine)">
   <link rel="preload" as="image" href="assets/specimens.png" media="(min-width:1101px) and (pointer:fine)">
-  <script defer src="engine.js?v=dev-odds-1"></script>
-  <script defer src="dev-mode.js?v=dev-odds-1"></script>
-  <script defer src="sound.js?v=incident-film-1"></script>
+  <script defer src="engine.js?v=pickup-1"></script>
+  <script defer src="dev-mode.js?v=pickup-1"></script>
+  <script defer src="sound.js?v=pickup-1"></script>
   <script defer src="incidents.js?v=incident-film-1"></script>
-  <script defer src="security-tapes.js?v=dev-odds-1"></script>
-  <script defer src="cabinet.js?v=dev-odds-2"></script>
+  <script defer src="security-tapes.js?v=pickup-1"></script>
+  <script defer src="cabinet.js?v=pickup-1"></script>
 </head>
 <body>
 <main>
@@ -31,7 +31,7 @@
     <div class="beacon left" aria-hidden="true"></div><div class="beacon right" aria-hidden="true"></div>
     <div class="reels" id="reels" role="img" aria-label="Five reels, three rows"></div>
     <div class="instruments">
-    <div class="monitor" aria-hidden="true"><div id="scan-specimen"></div><div id="echo-scope" hidden><i></i><i></i><i></i></div><div class="scan"></div><div class="radar-meter" id="radar"><span><b id="radar-name"></b><b id="radar-points"></b></span><i><em></em></i></div><div id="specimen-lights" hidden><b id="family-progress"></b><i></i><i></i><i></i></div></div>
+    <div class="monitor" aria-hidden="true"><div id="scan-specimen"></div><div id="echo-scope" hidden><i></i><i></i><i></i></div><div class="scan"></div><div class="radar-meter" id="radar"><span><b id="radar-name"></b><b id="radar-points"></b></span><i><em></em></i></div><div id="specimen-lights" hidden><div class="family-row"><b id="family-progress"></b><i></i><i></i><i></i></div><div class="pickup-row"><b id="trio-meter"></b><b id="rare-meter"></b></div></div></div>
     <div class="readout"><small id="read-label">Bounty scanner</small><b id="read-value">READY</b><span id="read-unit">ON PATROL</span></div>
     <div class="credit"><span class="mobile-label">Balance</span><output id="balance">1,240</output></div>
     <div class="stake"><span class="mobile-label">Stake</span><output id="stake">5</output></div>

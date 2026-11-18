@@ -19,7 +19,7 @@ window.SecurityTapes=(()=>{
       previous:previous?.tractor?.passes.at(-1)??previous?.grid??H.initialGrid,
       previousVariants:previous?.variants??{},previousStake:previous?.stake??r.stake,previousEnhanced:!!previous?.enhanced,
       grid:r.grid,lines:r.lineWins,passes:r.tractor?.passes??[],
-      variants:r.variants,stake:r.stake,free:r.free,enhanced:r.enhanced,bounty:r.bounty,payout:r.payout,
+      variants:r.variants,stake:r.stake,free:r.free,enhanced:r.enhanced,bounty:r.bounty,payout:r.payout,spinAwards:r.spinAwards,
       voids,passenger:r.passenger?.slot??null,revealed:false};
     state.tapes=trim([tape,...(state.tapes??[])]);
     return true;
@@ -173,6 +173,13 @@ window.SecurityTapes=(()=>{
     }
     unit.textContent='Spin total';meter.textContent=tape.payout.toLocaleString();caption('Recorded spin total · '+tape.payout.toLocaleString()+' tokens');
     await projector.advance(440);
+    const pickupSpins=(tape.spinAwards??[]).reduce((sum,a)=>sum+a.spins,0);
+    async function showCredit(reason,n){
+      unit.textContent='Free spins';meter.textContent='+'+n;caption(reason+' · +'+n+' free '+(n===1?'spin':'spins')+' on the original play.');
+      audio.play('spin-credit',n);await projector.advance(800);
+      unit.textContent='Spin total';meter.textContent=tape.payout.toLocaleString();
+    }
+    if(pickupSpins)await showCredit('Breach pickups',pickupSpins);
     if(tape.passenger!=null){
       await IncidentCamera.escape({...shot,source:slot(tape.passenger),target:key});
       key.classList.add('key-watching');
@@ -180,9 +187,11 @@ window.SecurityTapes=(()=>{
       if(tape.revealed){
         await IncidentCamera.unmask({...shot,source:key,target:board});
         key.classList.remove('key-watching');
+        if(tape.mimicReward)await showCredit('Button Mimic',tape.mimicReward.spins);
       }else{caption('End of tape. Last seen under the Spin button.');return;}
     }
-    caption('End of tape · '+tape.payout.toLocaleString()+' tokens on the original spin.');
+    const bonus=tape.mimicReward?' · +1 free '+tape.mimicReward.kind+' spin':'';
+    caption('End of tape · '+tape.payout.toLocaleString()+' tokens'+bonus+' on the original play.');
   }
   function screen(context,tape){
     eject();const instance=new AbortController();playback=instance;

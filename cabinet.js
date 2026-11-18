@@ -29,7 +29,7 @@
     try {
       const s=JSON.parse(localStorage.getItem(slotKey));
       if(s?.version===1 && Number.isSafeInteger(s.balance) && s.balance>=0 && stakeOptions.includes(s.stake)
-        && Array.isArray(s.captures) && s.captures.length===3 && Number.isInteger(s.remaining)) return {...fresh,...s};
+        && Array.isArray(s.captures) && s.captures.length===3 && Number.isInteger(s.remaining)) return H.honourMimics({...fresh,...s});
     } catch {}
     return fresh;
   }
@@ -40,6 +40,7 @@
   audio.setEnabled(sound);
   const current=()=>practice||state, format=n=>n.toLocaleString('en-GB');
   const passengerWaiting=s=>Boolean(s.last?.passenger && !s.last.passenger.found);
+  const breachActive=s=>s.remaining>0 || Boolean(s.last?.free && passengerWaiting(s));
   const wait=ms=>new Promise(done=>setTimeout(done,ms));
   const lock=job=>{
     const key=slotKey;
@@ -114,19 +115,24 @@
       lamp.title=H.species[i]+(mask&(1<<i)?' · filed':' · wanted');
     });
   }
+  function pickupMeter(s){
+    const p=H.pickupProgress(s);
+    $('trio-meter').textContent='Trio '+(p.trio?'✓':Math.min(3,Math.max(...p.families))+'/3')+' +2';
+    $('rare-meter').textContent='Rares '+(p.pair?'✓':Math.min(2,p.rares)+'/2')+' +1';
+  }
   function meters(){
-    const s=current(),free=s.remaining>0,short=s.balance<s.stake,empty=s.balance<5;
+    const s=current(),free=breachActive(s),pass=!free && s.patrolSpins>0,short=s.balance<s.stake,empty=s.balance<5;
     $('balance').textContent=format(s.balance);$('stake').textContent=s.stake;
     const waiting=passengerWaiting(s);
-    const label=waiting?'LIFT':practice && !free?'RETURN':!free && empty?'REFILL':'SPIN';
+    const label=waiting?'LIFT':practice && !free?'RETURN':pass?'FREE':!free && empty?'REFILL':'SPIN';
     $('spin').firstChild.textContent=label;
     $('spin').classList.toggle('labeled',label!=='SPIN');
     $('spin').classList.toggle('key-watching',waiting && !busy);
-    $('spin').ariaLabel=waiting?'Lift the Spin button and catch the stowaway':label==='RETURN'?'Return to patrol':label==='REFILL'?'Refill free tokens':free?'Play free spin':'Spin for '+s.stake+' tokens';
+    $('spin').ariaLabel=waiting?'Lift the Spin button for one free spin':label==='RETURN'?'Return to patrol':label==='REFILL'?'Refill free tokens':pass?'Use free patrol spin':free?'Play free spin':'Spin for '+s.stake+' tokens';
     const occupied=busy||!!batch;
-    $('spin').disabled=occupied || (!waiting && !free && short && !empty && !practice);
-    $('up').disabled=occupied||waiting||free||!!practice||s.stake===20||s.balance<stakeOptions[stakeOptions.indexOf(s.stake)+1];
-    $('down').disabled=occupied||waiting||free||!!practice||s.stake===5;
+    $('spin').disabled=occupied || (!waiting && !free && !pass && short && !empty && !practice);
+    $('up').disabled=occupied||waiting||free||pass||!!practice||s.stake===20||s.balance<stakeOptions[stakeOptions.indexOf(s.stake)+1];
+    $('down').disabled=occupied||waiting||free||pass||!!practice||s.stake===5;
     $('manual').disabled=$('files').disabled=$('tapes').disabled=$('dev').disabled=occupied;
     cabinet.classList.toggle('dev-active',devEnabled);
     $('dev').dataset.active=String(devEnabled);
@@ -134,13 +140,14 @@
     $('dev').setAttribute('aria-label',$('dev').title);
     batchControl();
     $('mode').textContent=free?(practice?'Breach drill':'Containment breach'):'Field patrol';
-    $('mission').textContent=free?'Free spins left  '+s.remaining+(s.enhanced && s.remaining<=2?' · 2×':''):'3 UFOs unlock free spins';
+    $('mission').textContent=free?'Free spins left  '+s.remaining+(H.doubleBounty(s)?' · 2×':''):pass?'Free patrol spins  '+s.patrolSpins:'3 UFOs unlock free spins';
     cabinet.classList.toggle('bonus',free);
-    const doubleBounty=free && s.enhanced && s.remaining<=2;
+    const doubleBounty=H.doubleBounty(s);
     cabinet.classList.toggle('double-bounty',doubleBounty);
     if(doubleBounty)$('mode').textContent='Double bounty';
     $('specimen-lights').hidden=!free;
     familyTrail(s.mask);
+    if(free)pickupMeter(s);
     $('case-count').textContent=H.catalog.filter(entry=>H.captured(s,entry)>0).length+'/'+H.catalog.length;
     radar(s.contacts);
     soundControl();
@@ -150,7 +157,7 @@
   }
   function batchControl(){
     const s=current(),button=$('batch');
-    button.disabled=batch?batch.stopped:busy||passengerWaiting(s)||!!practice||s.remaining>0||s.balance<s.stake*3;
+    button.disabled=batch?batch.stopped:busy||passengerWaiting(s)||!!practice||s.remaining>0||s.patrolSpins>0||s.balance<s.stake*3;
     button.textContent=batch?(batch.stopped?'Stopping…':'Stop · '+batch.turn+'/3'):'3 spins · '+s.stake*3;
     button.title=batch?'Finish this spin and end the patrol':'Play up to 3 spins at '+s.stake+' tokens each';
     button.setAttribute('aria-label',batch?'Stop three-spin patrol':button.title);
@@ -162,7 +169,7 @@
     if(portraitPlay.matches)return;
     audio.unlock();audio.play('switch');
     if(batch){stopBatch();return;}
-    if(busy||practice||passengerWaiting(state)||state.remaining||state.balance<state.stake*3)return;
+    if(busy||practice||passengerWaiting(state)||state.remaining||state.patrolSpins>0||state.balance<state.stake*3)return;
     batch={stake:state.stake,turn:0,stopped:false};
     try{
       for(let turn=1;turn<=3;turn++){
@@ -177,8 +184,12 @@
   function report(s){
     const r=s.last;
     if(passengerWaiting(s)){
-      $('mode').textContent='Uninvited passenger';$('mission').textContent='Lift the Spin button';
-      monitor('Control deck','LIFT','COVER');log('Two eyes under the Spin button. Tap it to lift the cover.');return;
+      $('mode').textContent='Uninvited passenger';$('mission').textContent='Lift Spin for +1 free spin';
+      monitor('Mimic reward','+1','FREE SPIN');log('Two eyes under Spin. Lift the cover to bank one free '+(r.free?'breach':'patrol')+' spin.');return;
+    }
+    if(!r && s.patrolSpins>0){
+      monitor('Button Mimic',String(s.patrolSpins),'FREE PATROL');
+      log('Previously caught Button Mimics paid '+s.patrolSpins+' free patrol '+(s.patrolSpins===1?'spin.':'spins.')+' Tap FREE to play.');return;
     }
     if(devEnabled && !practice && !r){
       monitor('Test wallet','READY','DEV MODE');
@@ -194,8 +205,18 @@
       monitor('UFO contact','+'+r.sightings,'radar points');log(r.sightings+' UFO '+(r.sightings===1?'contact':'contacts')+' logged. '+s.contacts+' total.');
     }
     if(r.rankUp)log(H.radarRanks[H.radarRank(s.contacts)].name+' radar unlocked. UFO odds improve from your next paid spin.');
-    if(!s.remaining && !practice && s.balance<s.stake) log(s.balance<5?'Patrol wallet empty. Press REFILL for 1,240 free tokens.':'Lower the stake to continue patrol.');
+    if(r.patrolFree && !r.triggered && !r.rankUp)log('Free patrol spin played. 0 tokens spent · '+format(r.payout)+' tokens won.');
+    if(!s.remaining && !s.patrolSpins && !practice && s.balance<s.stake) log(s.balance<5?'Patrol wallet empty. Press REFILL for 1,240 free tokens.':'Lower the stake to continue patrol.');
     if(r.tapeNumber && (r.passenger?.found || !r.passenger))log((r.passenger?'Button Mimic found. ':'Voidback recovered. ')+format(r.payout)+' tokens. Security tape '+r.tapeNumber+' filed.');
+    if(r.spinAwards?.length)log(spinAwardNames(r.spinAwards)+' · '+s.remaining+' free spins left.');
+    if(r.passenger?.reward){
+      const reward=r.passenger.reward;
+      monitor('Button Mimic','+1','FREE '+reward.kind.toUpperCase()+' SPIN');
+      log('Button Mimic paid +1 free '+reward.kind+' spin. '+reward.after+' available. Tap '+(reward.kind==='patrol'?'FREE':'Spin')+' to play.');
+    }else if(!s.remaining && s.patrolSpins>0){
+      monitor('Mimic spins',String(s.patrolSpins),'FREE PATROL');
+      log('Button Mimic reward · '+s.patrolSpins+' free patrol '+(s.patrolSpins===1?'spin':'spins')+' banked. Tap FREE to play.');
+    }
   }
   function restore(){
     const s=current();
@@ -372,6 +393,29 @@
       hatch.hidden=true;
       for(const door of doors)door.getAnimations().forEach(anim=>anim.cancel());
     }
+  }
+  function spinAwardNames(awards){
+    return awards.map(a=>a.id==='case'?'Three families +2 double-bounty spins':(a.id==='pair'?'Rare pair':H.species[a.family]+' trio')+' +'+a.spins).join(' · ');
+  }
+  async function showSpinAward(reason,spins,before,after,source,kind='breach'){
+    const unit=kind==='patrol'?'Free patrol spins':'Free spins left';
+    const title='+'+spins+' free '+(spins===1?'spin':'spins');
+    $('mission').textContent=unit+'  '+before+' → '+after;
+    monitor(reason==='Button Mimic'?reason:'Breach pickups','+'+spins,'FREE '+(spins===1?'SPIN':'SPINS'));
+    log(reason+' · '+title+' · '+after+' available.');
+    audio.play('spin-credit',spins);
+    if(!reduced.matches){
+      const chip=document.createElement('b');chip.className='spin-credit-chip';chip.textContent='+'+spins;
+      const [x,y]=center(source),[tx,ty]=center($('mission'));
+      chip.style.left=x+'px';chip.style.top=y+'px';$('effects').append(chip);
+      try{await playAnim(chip,[{transform:'translate(-50%,-50%) scale(.65)',opacity:0},
+        {transform:'translate(-50%,-85%) scale(1.18)',opacity:1,offset:.23},
+        {transform:'translate(calc(-50% + '+(tx-x)+'px),calc(-50% + '+(ty-y)+'px)) scale(.65)',opacity:.8}],
+        {duration:630,easing:'ease-in-out'});}finally{chip.remove();}
+      burst(tx,ty,15);
+    }
+    await announce(reason,title,unit+'  '+before+' → '+after);
+    if(reduced.matches)await wait(360);
   }
   async function announce(kicker,title,sub){
     $('announce-kicker').textContent=kicker;$('announce-main').textContent=title;$('announce-sub').textContent=sub;
@@ -716,9 +760,14 @@
       const rank=H.radarRanks[H.radarRank(s.contacts)];
       audio.play('case');await announce('Radar upgraded',rank.name,'UFO chance per scan reel '+Math.round(rank.ufo*100)+'%');
     }
-    if(r.triggered || r.caseClosed || r.finished){
+    if(r.free)pickupMeter(s);
+    if(r.triggered || r.spinAwards?.length || r.finished){
       if(r.triggered)await changeScene(true,'Quarantine bay sealed · 8 free spins');
-      if(r.caseClosed){audio.play('case');await announce('Three families recovered','Case closed','+2 double-bounty spins');}
+      if(r.spinAwards?.length){
+        if(r.caseClosed)audio.play('case');
+        await showSpinAward(spinAwardNames(r.spinAwards),s.remaining-r.spinsAfterUse,r.spinsAfterUse,s.remaining,
+          $('reels').querySelector('.capsule.filed,.capsule')??$('reels'));
+      }
       if(r.finished)await changeScene(false,format(s.featureTotal)+' tokens recovered');
     } else if(r.payout>=s.stake*15)await announce('Bureau commendation','Major recovery',format(r.payout)+' tokens');
   }
@@ -732,15 +781,16 @@
         if(!practice)reload();
         const s=current();
         if(passengerWaiting(s))return;
-        if(fromBatch===true && (batch.stopped||document.hidden||s.remaining||s.balance<s.stake||s.stake!==batch.stake))return;
+        if(fromBatch===true && (batch.stopped||document.hidden||s.remaining||s.patrolSpins>0||s.balance<s.stake||s.stake!==batch.stake))return;
         if(!s.remaining && practice){practice=null;reload();return;}
-        if(!s.remaining && s.balance<5){s.balance=1240;save();return;}
+        if(!s.remaining && !s.patrolSpins && s.balance<5){s.balance=1240;save();return;}
         // The incident drills use repeatable examples selected from the training controls.
         let demoSeed=practice?.drillType==='void'?484:10066;
         const demoDraw=()=>((demoSeed=(Math.imul(demoSeed,1664525)+1013904223)>>>0)/4294967296);
         const previous=s.last;
         const staged=devEnabled && !practice?dev.plan(s,devOptions,random):null;
-        r=H.spin(s,practice?.tractorDrill||practice?.drillType==='void'?demoDraw:random,staged);
+        const scripted=practice && !previous && (practice.tractorDrill||practice.drillType==='void');
+        r=H.spin(s,scripted?demoDraw:random,staged);
         if(!r)return;
         r.stake=s.stake;openingBalance=s.balance-r.payout;
         if(practice)reload();
@@ -748,7 +798,9 @@
         if(!practice||recorded)save();
       });
       if(!r){restore();return;}
-      const s=current();$('balance').textContent=format(openingBalance);log(r.free?'Containment scan in progress…':'Patrol scan in progress…');monitor('Scanning','•••','REELS ACTIVE');
+      const s=current();$('balance').textContent=format(openingBalance);
+      if(r.patrolFree){$('mode').textContent='Free patrol spin';$('mission').textContent='Button Mimic · stake covered';}
+      log(r.patrolFree?'Button Mimic free spin. 0 tokens spent.':r.free?'Containment scan in progress…':'Patrol scan in progress…');monitor('Scanning','•••','REELS ACTIVE');
       await roll(r,s);await celebrate(r,s,openingBalance);
       if(r.passenger){
         const k=r.passenger.slot;
@@ -768,16 +820,17 @@
         reload();
         const s=current();
         if(!passengerWaiting(s)||s.last.tapeNumber!==number)return false;
-        s.last.passenger.found=true;s.mimicsFound=(s.mimicsFound??0)+1;
+        const reward=H.claimPassenger(s);
         const tape=(state.tapes??[]).find(entry=>entry.number===number);
-        if(tape)tape.revealed=true;
+        if(tape){tape.revealed=true;tape.mimicReward=reward;}
         if(!practice||tape)save();
-        return true;
+        return reward;
       });
       if(found){
         $('mode').textContent='Deck inspection';$('mission').textContent='Cover released';
         monitor('Control deck','OPEN','EVIDENCE');
         await IncidentCamera.unmask({stage:cabinet,source:$('spin'),target:$('reels'),caption:log});
+        await showSpinAward('Button Mimic',1,found.before,found.after,$('spin'),found.kind);
       }
     }finally{busy=false;if(!practice)reload();restore();}
   }
@@ -786,7 +839,7 @@
     audio.unlock();audio.play('stake',direction);
     await lock(()=>{
       reload();const next=stakeOptions[stakeOptions.indexOf(state.stake)+direction];
-      if(next && next<=state.balance && !state.remaining){state.stake=next;save();}
+      if(next && next<=state.balance && !state.remaining && !state.patrolSpins && !passengerWaiting(state)){state.stake=next;save();}
     });restore();
   }
   function openPaper(title,body){
@@ -877,7 +930,7 @@
     if(staged)await patrol();
   }
   function fieldManual(){
-    openPaper('Field manual','<p>Spin five reels using free arcade tokens. Three or more matching mugshots or tools from the left pay on any of ten fixed lines.</p><h3>Line awards</h3><p>Three pay 2× your stake, four pay 8×, and five pay 25×. Each line pays its longest match.</p><div class="paylines" aria-label="Ten winning line patterns"></div><h3>Patrol bounties</h3><p>On patrol, an agent pays the value of every specimen jar on the same spin. Case-file discoveries and family rewards are earned during Containment Breach.</p><h3>Containment Breach</h3><p>UFOs on reels 1, 3 and 5 award eight free spins at the triggering stake. Agents and specimen jars appear more often here. When they land together, the agent collects every jar. Their tags show the token amounts.</p><h3>Tractor Lock</h3><p>On patrol or in a breach, one in three agent catches with an open jar reel and no UFO activates Tractor Lock. The agent and jar reels stay put. Each open reel has a 22% chance to land a jar per free rescan. Every pass that adds a jar starts another until all four are held or a pass comes up empty. The agent collects the whole catch once. Line awards use the opening spin.</p><h3>Close the case</h3><p>Capture all three bounty families in one breach to earn two extra spins. Jar values double during those two spins. Rare family members become available at higher radar ranks. Every species you capture gets its own incident record in the case file.</p><h3>Patrol encounters</h3><p>A visiting saucer can rewrite three symbols to complete a line or beam a UFO down to replace a reel symbol. A Sprout or Inkling can turn the tile beside it into a match. Line awards and UFO contacts use the final reel faces.</p><h3>Standard patrol odds</h3><p>Long-run token return 96.7%, including bonus awards. About one in seven paid spins pays a line award. Each result is drawn before the reels move.</p><small>Space spins · Escape closes this manual. Progress saves in this browser.</small>'
+    openPaper('Field manual','<p>Spin five reels using free arcade tokens. Three or more matching mugshots or tools from the left pay on any of ten fixed lines.</p><h3>Line awards</h3><p>Three pay 2× your stake, four pay 8×, and five pay 25×. Each line pays its longest match.</p><div class="paylines" aria-label="Ten winning line patterns"></div><h3>Patrol bounties</h3><p>On patrol, an agent pays the value of every specimen jar on the same spin. Case-file discoveries and family rewards are earned during Containment Breach.</p><h3>Containment Breach</h3><p>UFOs on reels 1, 3 and 5 award eight free spins at the triggering stake. Agents and specimen jars appear more often here. When they land together, the agent collects every jar. Their tags show the token amounts.</p><h3>Tractor Lock</h3><p>On patrol or in a breach, one in three agent catches with an open jar reel and no UFO activates Tractor Lock. The agent and jar reels stay put. Each open reel has a 22% chance to land a jar per free rescan. Every pass that adds a jar starts another until all four are held or a pass comes up empty. The agent collects the whole catch once. Line awards use the opening spin.</p><h3>Close the case</h3><p>Capture all three bounty families in one breach to earn two extra spins. Jar values double during those two spins. Rare family members become available at higher radar ranks. Every species you capture gets its own incident record in the case file.</p><h3>Free-spin pickups</h3><p>During one breach, capture three jars from the same family for two extra spins. Capture two rare specimens for one extra spin. Each goal pays once per breach. Jars added by Tractor Lock count when the agent collects them. A Button Mimic under Spin pays one free spin every time you lift the cover. On patrol it pays for the next patrol spin. In a breach it extends the current round, even on the last spin.</p><h3>Patrol encounters</h3><p>A visiting saucer can rewrite three symbols to complete a line or beam a UFO down to replace a reel symbol. A Sprout or Inkling can turn the tile beside it into a match. Line awards and UFO contacts use the final reel faces.</p><h3>Standard patrol odds</h3><p>The target long-run token return is 96.7%, including pickup rewards and bonus awards. About one in seven paid spins pays a line award. Each result is drawn before the reels move.</p><small>Space spins · Escape closes this manual. Progress saves in this browser.</small>'
       +(practice?'<br><button class="action" id="drill">Leave drill</button>':'<br><button class="action" id="drill">Try a bonus drill</button><button class="action" id="tractor-drill">Try Tractor Lock</button><p><small>Drills use a separate practice wallet. Tractor Lock demonstrates a four-jar catch.</small></p>'));
     H.lines.forEach((line,i)=>{
       const el=document.createElement('div');el.className='pattern';el.title='Line '+(i+1);
@@ -956,13 +1009,24 @@
     openPaper(title,'<div class="archive-progress"><strong>'+found+' / '+H.catalog.length+' species filed</strong><progress max="'+H.catalog.length+'" value="'+found+'" aria-label="Species collection"></progress></div><p>'+s.captures.reduce((a,b)=>a+b,0)+' specimens collected · '+s.cases+' '+(s.cases===1?'case':'cases')+' closed'+breachStatus+'</p><div class="case-grid"></div>');
     dialog.classList.add('archive');
     const grid=$('paper').querySelector('.case-grid');
+    if(breachActive(s)){
+      const p=H.pickupProgress(s),goals=document.createElement('section');goals.className='pickup-goals';
+      const heading=document.createElement('h3');heading.textContent='This breach · free-spin pickups';goals.append(heading);
+      for(const text of [
+        'Matching trio · +2 spins · '+(p.trio?'Earned':H.species.map((name,i)=>name+' '+Math.min(3,p.families[i])+'/3').join(' · ')),
+        'Rare pair · +1 spin · '+(p.pair?'Earned':Math.min(2,p.rares)+'/2 rare specimens'),
+        'Three families · +2 double-bounty spins · '+(s.enhanced?'Earned':[1,2,4].filter(bit=>s.mask&bit).length+'/3 families'),
+        'Button Mimic · Lift Spin for +1 each time'
+      ]){const row=document.createElement('p');row.textContent=text;goals.append(row);}
+      grid.before(goals);
+    }
     const lab=document.createElement('button');
     lab.id='open-lab';lab.className='action';lab.textContent='Evidence lab · Identify 3 scans';
     lab.onclick=evidenceLab;grid.before(lab);
     const tapes=document.createElement('button');tapes.className='action';tapes.textContent='Security tapes';tapes.onclick=tapeRoom;grid.before(tapes);
     if(s.mimicsFound){
       const damage=document.createElement('details');damage.className='clearance';
-      damage.innerHTML='<summary>Control deck damage · Button Mimic</summary><p>Found beneath the Spin cover. Two claw marks in the brass and one bent return spring.</p>';
+      damage.innerHTML='<summary>Control deck damage · Button Mimic</summary><p>Found beneath the Spin cover. Each capture awards one free spin. Two claw marks in the brass and one bent return spring.</p>';
       grid.before(damage);
     }
     if(s.lastDebrief){
@@ -972,6 +1036,7 @@
       const info=document.createElement('p');
       const families=H.species.filter((_,i)=>mask&(1<<i));
       info.textContent=(families.length?families.join(', '):'No families filed')+'.'+(specimens!=null?' '+specimens+' specimens recovered. Largest single collect '+format(bestCatch)+' tokens.':'');
+      if(s.lastDebrief.extra)info.textContent+=' '+s.lastDebrief.extra+' extra free spins earned.';
       debrief.append(heading,info);grid.before(debrief);
     }
     for(const entry of H.catalog){
